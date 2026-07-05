@@ -22,3 +22,28 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+*.bat
+
+# 인텔리제이 설정 파일 (공유하면 팀원과 충돌남)
+.idea/
+*.iml
+
+# 빌드 결과물 (용량만 차지함)
+/build/
+/out/
+
+# DB 비밀번호 유출 방지 (초강력 추천 ★)
+application.yml
+
+*.bin
+*.lock
+# Gradle 임시 캐시 폴더 무시
+.gradle/
+
+# Java JVM crash logs
+hs_err_pid*.log
+replay_pid*.log
+
+PROJECT_DOCS.md
+.env

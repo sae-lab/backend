@@ -1,0 +1,40 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.2.4'
+    id 'io.spring.dependency-management' version '1.1.4'
+}
+
+// 질문자님의 실제 패키지 경로로 그룹명 설정
+group = 'com.se_lab'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    sourceCompatibility = '17' // Java 17 사용
+}
+
+repositories {
+    mavenCentral() // 인터넷(Maven)에서 라이브러리를 다운로드하겠다는 선언
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // JWT 발급 및 검증을 위한 라이브러리 (최신 보안 패치 버전)
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    implementation 'io.github.cdimascio:dotenv-java:3.0.0'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
