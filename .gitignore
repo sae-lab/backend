@@ -12,6 +12,7 @@
 
 # Package Files #
 *.jar
+!/gradle/wrapper/gradle-wrapper.jar
 *.war
 *.nar
 *.ear
@@ -24,6 +25,7 @@ hs_err_pid*
 replay_pid*
 
 *.bat
+!/gradlew.bat
 
 # 인텔리제이 설정 파일 (공유하면 팀원과 충돌남)
 .idea/
