@@ -74,8 +74,6 @@ public class TourApiService {
             uriBuilder.queryParam("contentTypeId", contentTypeId);
         }
 
-        uriBuilder.queryParam("mapinfoYN", "Y");
-
         String fullUrl = uriBuilder.build(false).toUriString();
         logger.debug("Final URL for getPlacesByArea: {}", fullUrl);
         return parseJsonResponse(fullUrl, "getPlacesByArea", false);
@@ -90,8 +88,6 @@ public class TourApiService {
                 .queryParam("keyword", keyword)
                 .queryParam("numOfRows", String.valueOf(numOfRows))
                 .queryParam("arrange", "A");
-
-        uriBuilder.queryParam("mapinfoYN", "Y");
 
         String fullUrl = uriBuilder.build(false).toUriString();
         logger.debug("Final URL for searchByKeyword: {}", fullUrl);
