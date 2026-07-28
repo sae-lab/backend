@@ -15,4 +15,5 @@ public class BasePlaceDto {
     private double mapy;
     private double mapx;
     private String thumbnailUrl;
+    private String contentId;
 }

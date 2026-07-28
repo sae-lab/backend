@@ -12,8 +12,8 @@ import lombok.experimental.SuperBuilder;
 public class CourseDetailDto extends BasePlaceDto {
     private String description;
 
-    public CourseDetailDto(String title, String addr1, double mapy, double mapx, String thumbnailUrl, String description) {
-        super(title, addr1, mapy, mapx, thumbnailUrl);
+    public CourseDetailDto(String title, String addr1, double mapy, double mapx, String thumbnailUrl, String contentId, String description) {
+        super(title, addr1, mapy, mapx, thumbnailUrl, contentId);
         this.description = description;
     }
 }

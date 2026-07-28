@@ -45,7 +45,7 @@ public class RouteServiceImpl implements RouteService {
 
     @Override
     public CourseDetailDto getRouteDetail(String id) {
-        return new CourseDetailDto("Placeholder Title", "Placeholder Address", 0.0, 0.0, "", "Detailed description of " + id);
+        return new CourseDetailDto("Placeholder Title", "Placeholder Address", 0.0, 0.0, "", id, "Detailed description of " + id);
     }
 
     @Override
@@ -59,7 +59,7 @@ public class RouteServiceImpl implements RouteService {
 
         return allRoutes.stream()
                 .limit(count)
-                .map(place -> new HomeRecommendDto(place.getTitle(), place.getAddr1(), place.getMapy(), place.getMapx(), place.getThumbnailUrl(), "보통"))
+                .map(place -> new HomeRecommendDto(place.getTitle(), place.getAddr1(), place.getMapy(), place.getMapx(), place.getThumbnailUrl(), place.getContentId(), "보통"))
                 .collect(Collectors.toList());
     }
 

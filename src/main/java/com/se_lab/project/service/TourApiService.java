@@ -40,7 +40,7 @@ public class TourApiService {
                 .queryParam("_type", "json")
                 .queryParam("mapX", mapX)
                 .queryParam("mapY", mapY)
-                .queryParam("radius", "2000")
+                .queryParam("radius", "10000")
                 .queryParam("arrange", "S")
                 .queryParam("contentTypeId", "25")
                 .queryParam("cat1", "C01")
@@ -124,7 +124,8 @@ public class TourApiService {
                 item.path("addr1").asText(),
                 item.path("mapy").asDouble(),
                 item.path("mapx").asDouble(),
-                imageUrl
+                imageUrl,
+                item.path("contentid").asText()
         );
     }
 }

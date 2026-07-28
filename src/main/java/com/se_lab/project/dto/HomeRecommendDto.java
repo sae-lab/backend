@@ -12,8 +12,8 @@ import lombok.experimental.SuperBuilder;
 public class HomeRecommendDto extends BasePlaceDto {
     private String difficulty;
 
-    public HomeRecommendDto(String title, String addr1, double mapy, double mapx, String thumbnailUrl, String difficulty) {
-        super(title, addr1, mapy, mapx, thumbnailUrl);
+    public HomeRecommendDto(String title, String addr1, double mapy, double mapx, String thumbnailUrl, String contentId, String difficulty) {
+        super(title, addr1, mapy, mapx, thumbnailUrl, contentId);
         this.difficulty = difficulty;
     }
 }
