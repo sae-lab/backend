@@ -49,3 +49,6 @@ replay_pid*.log
 
 PROJECT_DOCS.md
 .env
+GEMINI.md
+
+*.patch

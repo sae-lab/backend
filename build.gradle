@@ -32,6 +32,8 @@ dependencies {
 
     implementation 'io.github.cdimascio:dotenv-java:3.0.0'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
+
+    implementation 'org.jetbrains:annotations:26.0.2'
 }
 
 tasks.named('test') {
