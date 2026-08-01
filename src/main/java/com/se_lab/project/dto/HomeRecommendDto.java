@@ -10,10 +10,31 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @AllArgsConstructor
 public class HomeRecommendDto extends BasePlaceDto {
+
     private String difficulty;
 
-    public HomeRecommendDto(String title, String addr1, double mapy, double mapx, String thumbnailUrl, String contentId, String difficulty) {
-        super(title, addr1, mapy, mapx, thumbnailUrl, contentId);
+    public HomeRecommendDto(
+            String title,
+            String addr1,
+            double mapy,
+            double mapx,
+            String thumbnailUrl,
+            String contentId,
+            String difficulty
+    ) {
+        super(
+                title,
+                addr1,
+                mapy,
+                mapx,
+                thumbnailUrl,
+                contentId,
+                null, // contentTypeId
+                null, // cat1
+                null, // cat2
+                null, // cat3
+                0    // estimatedStayTime
+        );
         this.difficulty = difficulty;
     }
 }
