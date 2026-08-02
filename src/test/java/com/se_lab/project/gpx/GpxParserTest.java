@@ -4,9 +4,10 @@ import com.se_lab.project.dto.GpxPoint;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class GpxParserTest {
 
@@ -21,9 +22,13 @@ class GpxParserTest {
                         .getClassLoader()
                         .getResourceAsStream("sample2.gpx");
 
+        String gpxXml = new String(
+                inputStream.readAllBytes(),
+                StandardCharsets.UTF_8
+        );
 
         List<GpxPoint> points =
-                parser.parse(inputStream);
+                parser.parse(gpxXml);
 
 
         System.out.println(
@@ -56,8 +61,13 @@ class GpxParserTest {
                         .getResourceAsStream("sample2.gpx");
 
 
+        String gpxXml = new String(
+                inputStream.readAllBytes(),
+                StandardCharsets.UTF_8
+        );
+
         List<GpxPoint> points =
-                parser.parse(inputStream);
+                parser.parse(gpxXml);
 
 
         List<GpxPoint> sampled =

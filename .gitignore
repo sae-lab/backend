@@ -52,3 +52,5 @@ PROJECT_DOCS.md
 GEMINI.md
 
 *.patch
+
+!src/test/resources/*.gpx
