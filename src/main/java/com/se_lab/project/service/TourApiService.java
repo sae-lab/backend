@@ -55,6 +55,26 @@ public class TourApiService {
         return parseJsonResponse(fullUrl, "getNearbyPlaces", true);
     }
 
+    // 넓은 반경으로 주변 관광지를 조회 (카테고리 제한 없음) — 순례길 구간처럼 넓은 지역을 훑을 때 사용
+    public List<BasePlaceDto> getNearbyPlacesWide(String mapX, String mapY, int radiusMeters) {
+        String fullUrl = UriComponentsBuilder.fromHttpUrl(baseUrl + locationBasedEndpoint)
+                .queryParam("serviceKey", serviceKey)
+                .queryParam("MobileOS", "ETC")
+                .queryParam("MobileApp", "KangwonRoad")
+                .queryParam("_type", "json")
+                .queryParam("mapX", mapX)
+                .queryParam("mapY", mapY)
+                .queryParam("radius", String.valueOf(radiusMeters))
+                .queryParam("arrange", "S")
+                .queryParam("contentTypeId", "12")
+                .queryParam("numOfRows", "20")
+                .build(false)
+                .toUriString();
+
+        logger.debug("Final URL for getNearbyPlacesWide: {}", fullUrl);
+        return parseJsonResponse(fullUrl, "getNearbyPlacesWide", true);
+    }
+
     public List<BasePlaceDto> getPlacesByArea(String areaCode, String sigunguCode, String contentTypeId, int numOfRows) {
         UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromHttpUrl(baseUrl + areaBasedEndpoint)
                 .queryParam("serviceKey", serviceKey)
