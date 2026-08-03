@@ -7,6 +7,7 @@ import com.se_lab.project.constants.TourTimeConstants;
 import com.se_lab.project.dto.BasePlaceDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -45,6 +46,7 @@ public class TourApiService {
         this.searchKeywordEndpoint = searchKeywordEndpoint;
     }
 
+    @Cacheable(value = "nearbyPlaces", key = "#mapX + '_' + #mapY")
     public List<BasePlaceDto> getNearbyPlaces(String mapX, String mapY) {
         String fullUrl = UriComponentsBuilder.fromHttpUrl(baseUrl + locationBasedEndpoint)
                 .queryParam("serviceKey", serviceKey)

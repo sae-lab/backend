@@ -10,6 +10,7 @@ import com.se_lab.project.repository.SavedPilgrimageRepository;
 import com.se_lab.project.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,8 +46,13 @@ public class SavedPilgrimageServiceImpl implements SavedPilgrimageService {
             return false;
         }
 
-        savedPilgrimageRepository.save(SavedPilgrimage.builder().user(user).route(route).build());
-        return true;
+        try {
+            savedPilgrimageRepository.save(SavedPilgrimage.builder().user(user).route(route).build());
+            return true;
+        } catch (DataIntegrityViolationException e) {
+            // Concurrent duplicate insert detected - treat as already saved
+            return false;
+        }
     }
 
     @Override

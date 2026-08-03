@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class GpxParserTest {
 
@@ -20,33 +21,23 @@ class GpxParserTest {
         InputStream inputStream =
                 getClass()
                         .getClassLoader()
-                        .getResourceAsStream("sample2.gpx");
+                        .getResourceAsStream("test-trail-route2.gpx");
 
-        String gpxXml = new String(
-                inputStream.readAllBytes(),
-                StandardCharsets.UTF_8
-        );
+        assertNotNull(inputStream);
 
-        List<GpxPoint> points =
-                parser.parse(gpxXml);
+        try (inputStream) {
 
+            String gpxXml = new String(
+                    inputStream.readAllBytes(),
+                    StandardCharsets.UTF_8
+            );
 
-        System.out.println(
-                "좌표 개수 = " + points.size()
-        );
+            List<GpxPoint> points =
+                    parser.parse(gpxXml);
 
-
-        System.out.println(
-                "첫 좌표 = "
-                        + points.get(0).getLatitude()
-                        + ", "
-                        + points.get(0).getLongitude()
-        );
-
-
-        assertFalse(points.isEmpty());
+            assertFalse(points.isEmpty());
+        }
     }
-
 
     @Test
     void sampleGpxPoints() throws Exception {
@@ -54,43 +45,46 @@ class GpxParserTest {
         GpxParser parser = new GpxParser();
         GpxSampler sampler = new GpxSampler();
 
-
         InputStream inputStream =
                 getClass()
                         .getClassLoader()
-                        .getResourceAsStream("sample2.gpx");
+                        .getResourceAsStream("test-trail-route2.gpx");
+
+        assertNotNull(inputStream);
+
+        try (inputStream) {
+
+            String gpxXml = new String(
+                    inputStream.readAllBytes(),
+                    StandardCharsets.UTF_8
+            );
+
+            List<GpxPoint> points =
+                    parser.parse(gpxXml);
 
 
-        String gpxXml = new String(
-                inputStream.readAllBytes(),
-                StandardCharsets.UTF_8
-        );
-
-        List<GpxPoint> points =
-                parser.parse(gpxXml);
+            List<GpxPoint> sampled =
+                    sampler.sample(points, 10);
 
 
-        List<GpxPoint> sampled =
-                sampler.sample(points, 10);
+            System.out.println(
+                    "전체 좌표 = " + points.size()
+            );
 
 
-        System.out.println(
-                "전체 좌표 = " + points.size()
-        );
+            System.out.println(
+                    "대표 좌표 = " + sampled.size()
+            );
 
 
-        System.out.println(
-                "대표 좌표 = " + sampled.size()
-        );
-
-
-        sampled.forEach(point ->
-                System.out.println(
-                        point.getLatitude()
-                                + ", "
-                                + point.getLongitude()
-                )
-        );
+            sampled.forEach(point ->
+                    System.out.println(
+                            point.getLatitude()
+                                    + ", "
+                                    + point.getLongitude()
+                    )
+            );
+        }
     }
 
 }
