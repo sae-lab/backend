@@ -37,6 +37,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/home").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/v1/routes/**").permitAll()
+                        .requestMatchers("/api/v1/pilgrimages/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(new JwtAuthenticationFilter(jwtUtil), UsernamePasswordAuthenticationFilter.class);
