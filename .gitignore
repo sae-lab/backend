@@ -1,18 +1,16 @@
-# Compiled class file
+# ==============================
+# Java Build
+# ==============================
+
+# Compiled class files
 *.class
 
-# Log file
-*.log
+# Build output
+/build/
+/out/
 
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
+# Package files
 *.jar
-!/gradle/wrapper/gradle-wrapper.jar
 *.war
 *.nar
 *.ear
@@ -20,37 +18,94 @@
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+# Keep Gradle wrapper jar
+!/gradle/wrapper/gradle-wrapper.jar
+
+
+# ==============================
+# Gradle
+# ==============================
+
+# Gradle cache and temporary files
+.gradle/
+
+
+# ==============================
+# Logs & Crash Reports
+# ==============================
+
+# Application logs
+*.log
+
+# JVM crash logs
 hs_err_pid*
 replay_pid*
 
-*.bat
-!/gradlew.bat
 
-# 인텔리제이 설정 파일 (공유하면 팀원과 충돌남)
+# ==============================
+# Java Tools
+# ==============================
+
+# BlueJ files
+*.ctxt
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+
+# ==============================
+# IntelliJ IDEA
+# ==============================
+
+# IDE settings
 .idea/
 *.iml
 
-# 빌드 결과물 (용량만 차지함)
-/build/
-/out/
 
-# DB 비밀번호 유출 방지 (초강력 추천 ★)
+# ==============================
+# Environment & Secrets
+# ==============================
+
+# Application configuration
 application.yml
 
-*.bin
-*.lock
-# Gradle 임시 캐시 폴더 무시
-.gradle/
-
-# Java JVM crash logs
-hs_err_pid*.log
-replay_pid*.log
-
-PROJECT_DOCS.md
+# Environment variables
 .env
+
+
+# ==============================
+# Project Personal Files
+# ==============================
+
+# Personal development notes
+.local/
+
+# Project documents not tracked
+PROJECT_DOCS.md
+
+# AI assistant configuration
 GEMINI.md
 
+
+# ==============================
+# Other Files
+# ==============================
+
+# Windows batch files except Gradle wrapper
+*.bat
+!/gradlew.bat
+
+# Binary / lock files
+*.bin
+*.lock
+
+# Patch files
 *.patch
 
-!src/test/resources/*.gpx
+src/test/resources/*.gpx
+
+
+# ==============================
+# Test Resources
+# ==============================
+
