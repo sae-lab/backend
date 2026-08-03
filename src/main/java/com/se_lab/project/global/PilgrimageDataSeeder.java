@@ -5,6 +5,7 @@ import com.se_lab.project.entity.PilgrimageSegment;
 import com.se_lab.project.repository.PilgrimageRouteRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -15,9 +16,8 @@ public class PilgrimageDataSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        if (pilgrimageRouteRepository.count() > 0) return;
-
         PilgrimageRoute route = PilgrimageRoute.builder()
+                .identifier("seed-gangneung-donghae-samcheok")
                 .name("강릉-동해-삼척 해안 순례길")
                 .description("강릉에서 동해를 거쳐 삼척까지, 동해안을 따라 걷는 구간형 순례 코스")
                 .build();
@@ -44,6 +44,10 @@ public class PilgrimageDataSeeder implements CommandLineRunner {
                 .estimatedMinutes(252)
                 .build());
 
-        pilgrimageRouteRepository.save(route);
+        try {
+            pilgrimageRouteRepository.save(route);
+        } catch (DataIntegrityViolationException e) {
+            // Seed route already exists due to unique constraint on identifier - skip silently
+        }
     }
 }

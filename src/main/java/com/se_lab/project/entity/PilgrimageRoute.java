@@ -21,6 +21,9 @@ public class PilgrimageRoute {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(unique = true)
+    private String identifier;
+
     @Column(nullable = false)
     private String name;
 
