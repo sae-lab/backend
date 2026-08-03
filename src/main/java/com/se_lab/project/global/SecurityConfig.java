@@ -38,6 +38,7 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/v1/routes/**").permitAll()
                         .requestMatchers("/api/v1/pilgrimages/**").permitAll()
+                        .requestMatchers("/api/v1/trails/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(new JwtAuthenticationFilter(jwtUtil), UsernamePasswordAuthenticationFilter.class);

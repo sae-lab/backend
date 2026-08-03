@@ -118,16 +118,12 @@ public class PilgrimageServiceImpl implements PilgrimageService {
                 .build();
     }
 
-    private static final int SEGMENT_SEARCH_RADIUS_METERS = 15000;
-
     private List<BasePlaceDto> findSpotsAlongSegment(PilgrimageSegment segment) {
         try {
-            List<BasePlaceDto> fromNearby = tourApiService.getNearbyPlacesWide(
-                    String.valueOf(segment.getFromLng()), String.valueOf(segment.getFromLat()),
-                    SEGMENT_SEARCH_RADIUS_METERS);
-            List<BasePlaceDto> toNearby = tourApiService.getNearbyPlacesWide(
-                    String.valueOf(segment.getToLng()), String.valueOf(segment.getToLat()),
-                    SEGMENT_SEARCH_RADIUS_METERS);
+            List<BasePlaceDto> fromNearby = tourApiService.getNearbyPlaces(
+                    String.valueOf(segment.getFromLng()), String.valueOf(segment.getFromLat()));
+            List<BasePlaceDto> toNearby = tourApiService.getNearbyPlaces(
+                    String.valueOf(segment.getToLng()), String.valueOf(segment.getToLat()));
 
             List<BasePlaceDto> merged = new java.util.ArrayList<>();
             merged.addAll(fromNearby == null ? Collections.emptyList() : fromNearby);
