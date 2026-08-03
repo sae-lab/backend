@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+// TODO: 사용자 위치 기반 트레일 추천 기능 구현
+
 @RestController
 @RequestMapping("/api/v1/trails")
 @RequiredArgsConstructor
