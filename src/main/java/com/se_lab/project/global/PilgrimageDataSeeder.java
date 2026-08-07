@@ -3,19 +3,27 @@ package com.se_lab.project.global;
 import com.se_lab.project.entity.PilgrimageRoute;
 import com.se_lab.project.entity.PilgrimageSegment;
 import com.se_lab.project.repository.PilgrimageRouteRepository;
+import com.se_lab.project.service.TrailSyncService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
+import com.se_lab.project.repository.TrailRepository;
 
 @Component
 @RequiredArgsConstructor
 public class PilgrimageDataSeeder implements CommandLineRunner {
 
     private final PilgrimageRouteRepository pilgrimageRouteRepository;
+    private final TrailSyncService trailSyncService;
+    private final TrailRepository trailRepository;
 
     @Override
     public void run(String... args) {
 
+//        if(trailRepository.count() == 0){
+//            trailSyncService.syncTrails();
+//        }
+        trailSyncService.syncTrails();
         String identifier = "seed-gangneung-donghae-samcheok";
 
         if (pilgrimageRouteRepository.existsByIdentifier(identifier)) {

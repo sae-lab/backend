@@ -3,6 +3,7 @@ package com.se_lab.project.service;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.se_lab.project.dto.GpxPoint;
 import com.se_lab.project.dto.TrailDto;
+import com.se_lab.project.dto.durunubi.DurunubiItem;
 import com.se_lab.project.dto.durunubi.DurunubiResponse;
 import com.se_lab.project.gpx.GpxParser;
 import com.se_lab.project.gpx.GpxSampler;
@@ -85,21 +86,21 @@ public class DurunubiApiService {
                     xml.substring(0, Math.min(xml.length(), 500))
             );
         }
+
+        List<TrailDto> trails = parseXml(xml);
+
+        trails.forEach(trail ->
+                log.info("{} / {}", trail.getRegion(), trail.getCourseName())
+        );
         return parseXml(xml);
     }
 
     private List<GpxPoint> getGpxPoints(String url) {
 
         String gpx =
-                restTemplate.getForObject(
-                        url,
-                        String.class
-                );
+                restTemplate.getForObject(url, String.class);
 
-        List<GpxPoint> points =
-                gpxParser.parse(gpx);
-
-        return gpxSampler.sample(points, 100);
+        return gpxParser.parse(gpx);
     }
 
     private List<TrailDto> parseXml(String xml) {
@@ -107,84 +108,15 @@ public class DurunubiApiService {
         try {
 
             DurunubiResponse response =
-                    xmlMapper.readValue(
-                            xml,
-                            DurunubiResponse.class
-                    );
+                    xmlMapper.readValue(xml, DurunubiResponse.class);
 
-            List<TrailDto> result = response
-                    .getBody()
+            return response.getBody()
                     .getItems()
                     .getItem()
                     .stream()
-
-                    .map(item -> {
-
-                        List<GpxPoint> points = List.of();
-
-                        try {
-
-                            points = getGpxPoints(item.getGpxpath());
-
-                            return TrailDto.builder()
-                                    .routeId(item.getRouteIdx())
-                                    .courseId(item.getCrsIdx())
-                                    .courseName(item.getCrsKorNm())
-                                    .region(item.getSigun())
-                                    .distance(Double.parseDouble(item.getCrsDstnc()))
-                                    .requiredMinutes(Integer.parseInt(item.getCrsTotlRqrmHour()))
-                                    .difficulty(Integer.parseInt(item.getCrsLevel()))
-                                    .courseType(item.getCrsCycle())
-                                    .summary(item.getCrsSummary())
-                                    .gpxUrl(item.getGpxpath())
-                                    .coordinates(points)
-                                    .build();
-
-                        } catch (Exception e) {
-
-                            log.warn(
-                                    "GPX 처리 실패 course={}, url={}",
-                                    item.getCrsKorNm(),
-                                    item.getGpxpath(),
-                                    e
-                            );
-
-                            return TrailDto.builder()
-                                    .routeId(item.getRouteIdx())
-                                    .courseId(item.getCrsIdx())
-                                    .courseName(item.getCrsKorNm())
-                                    .region(item.getSigun())
-                                    .distance(Double.parseDouble(item.getCrsDstnc()))
-                                    .requiredMinutes(Integer.parseInt(item.getCrsTotlRqrmHour()))
-                                    .difficulty(Integer.parseInt(item.getCrsLevel()))
-                                    .courseType(item.getCrsCycle())
-                                    .summary(item.getCrsSummary())
-                                    .gpxUrl(item.getGpxpath())
-                                    .coordinates(points)
-                                    .build();
-                        }
-
-                    })
+                    .map(this::convertToTrailDto)
                     .toList();
 
-            log.info("파싱된 코스 개수={}", result.size());
-            if (!result.isEmpty()) {
-
-                TrailDto first = result.get(0);
-
-                log.info(
-                        "첫 코스={}, 좌표수={}",
-                        first.getCourseName(),
-                        first.getCoordinates().size()
-                );
-            }
-
-
-            // ⭐ 여기 추가
-            // testGpx(result.get(0).getGpxUrl());
-
-
-            return result;
 
         } catch (Exception e) {
 
@@ -192,5 +124,45 @@ public class DurunubiApiService {
 
             return List.of();
         }
+    }
+
+    private TrailDto convertToTrailDto(DurunubiItem item) {
+
+        List<GpxPoint> points = List.of();
+
+        try {
+
+            points = getGpxPoints(item.getGpxpath());
+
+            log.info(
+                    "코스={}, GPX 좌표 개수={}",
+                    item.getCrsKorNm(),
+                    points.size()
+            );
+
+        } catch (Exception e) {
+
+            log.warn(
+                    "GPX 처리 실패 course={}, url={}",
+                    item.getCrsKorNm(),
+                    item.getGpxpath(),
+                    e
+            );
+        }
+
+
+        return TrailDto.builder()
+                .routeId(item.getRouteIdx())
+                .courseId(item.getCrsIdx())
+                .courseName(item.getCrsKorNm())
+                .region(item.getSigun())
+                .distance(Double.parseDouble(item.getCrsDstnc()))
+                .requiredMinutes(Integer.parseInt(item.getCrsTotlRqrmHour()))
+                .difficulty(Integer.parseInt(item.getCrsLevel()))
+                .courseType(item.getCrsCycle())
+                .summary(item.getCrsSummary())
+                .gpxUrl(item.getGpxpath())
+                .coordinates(points)
+                .build();
     }
 }
