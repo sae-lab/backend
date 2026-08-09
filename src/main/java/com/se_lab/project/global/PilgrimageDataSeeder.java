@@ -3,21 +3,35 @@ package com.se_lab.project.global;
 import com.se_lab.project.entity.PilgrimageRoute;
 import com.se_lab.project.entity.PilgrimageSegment;
 import com.se_lab.project.repository.PilgrimageRouteRepository;
+import com.se_lab.project.service.TrailSyncService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
+import com.se_lab.project.repository.TrailRepository;
 
 @Component
 @RequiredArgsConstructor
 public class PilgrimageDataSeeder implements CommandLineRunner {
 
     private final PilgrimageRouteRepository pilgrimageRouteRepository;
+    private final TrailSyncService trailSyncService;
+    private final TrailRepository trailRepository;
 
     @Override
     public void run(String... args) {
+
+//        if(trailRepository.count() == 0){
+//            trailSyncService.syncTrails();
+//        }
+        trailSyncService.syncTrails();
+        String identifier = "seed-gangneung-donghae-samcheok";
+
+        if (pilgrimageRouteRepository.existsByIdentifier(identifier)) {
+            return;
+        }
+
         PilgrimageRoute route = PilgrimageRoute.builder()
-                .identifier("seed-gangneung-donghae-samcheok")
+                .identifier(identifier)
                 .name("강릉-동해-삼척 해안 순례길")
                 .description("강릉에서 동해를 거쳐 삼척까지, 동해안을 따라 걷는 구간형 순례 코스")
                 .build();
@@ -43,11 +57,5 @@ public class PilgrimageDataSeeder implements CommandLineRunner {
                 .difficulty("보통")
                 .estimatedMinutes(252)
                 .build());
-
-        try {
-            pilgrimageRouteRepository.save(route);
-        } catch (DataIntegrityViolationException e) {
-            // Seed route already exists due to unique constraint on identifier - skip silently
-        }
     }
 }
