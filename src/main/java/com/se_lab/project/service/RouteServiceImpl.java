@@ -1,7 +1,6 @@
 package com.se_lab.project.service;
 
 import com.se_lab.project.constants.TourApiConstants;
-import com.se_lab.project.constants.TourTimeConstants;
 import com.se_lab.project.dto.BasePlaceDto;
 import com.se_lab.project.dto.CourseDetailDto;
 import com.se_lab.project.dto.HomeRecommendDto;
@@ -18,6 +17,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class RouteServiceImpl implements RouteService {
+
+    private static final int WALKING_STOPOVER_MINUTES = 15;
 
     private boolean isWalkingPlace(BasePlaceDto place) {
 
@@ -108,7 +109,9 @@ public class RouteServiceImpl implements RouteService {
         }
 
         candidates = filterWalkingCandidates(candidates);
-        candidates.forEach(p -> p.setEstimatedStayTime(TourTimeConstants.getStayTime("tourist_attraction")));
+        // 관광 방문(90분)이 아니라 잠깐 들르는 산책 스팟이라, 30/60분 예산에서도
+        // 실제로 경로에 포함될 수 있도록 짧은 체류시간을 준다.
+        candidates.forEach(p -> p.setEstimatedStayTime(WALKING_STOPOVER_MINUTES));
         
         // 로그
 
