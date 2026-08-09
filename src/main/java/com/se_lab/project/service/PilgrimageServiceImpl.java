@@ -1,6 +1,7 @@
 package com.se_lab.project.service;
 
 import com.se_lab.project.dto.BasePlaceDto;
+import com.se_lab.project.dto.Coordinate;
 import com.se_lab.project.dto.PilgrimageRouteDetailDto;
 import com.se_lab.project.dto.PilgrimageRouteSummaryDto;
 import com.se_lab.project.dto.PilgrimageSegmentDto;
@@ -30,6 +31,7 @@ public class PilgrimageServiceImpl implements PilgrimageService {
 
     private final PilgrimageRouteRepository pilgrimageRouteRepository;
     private final TourApiService tourApiService;
+    private final KakaoDirectionsService kakaoDirectionsService;
     private final java.util.Random random = new java.util.Random();
 
     @Override
@@ -45,7 +47,7 @@ public class PilgrimageServiceImpl implements PilgrimageService {
                 .orElseThrow(() -> new EntityNotFoundException("순례길을 찾을 수 없습니다: " + id));
 
         List<PilgrimageSegmentDto> segmentDtos = route.getSegments().stream()
-                .map(this::toSegmentDto)
+                .map(segment -> toSegmentDto(segment, route.getCategory()))
                 .collect(Collectors.toList());
 
         return PilgrimageRouteDetailDto.builder()
@@ -60,7 +62,7 @@ public class PilgrimageServiceImpl implements PilgrimageService {
 
     @Override
     @Transactional
-    public PilgrimageRouteSummaryDto generateRandomRoute() {
+    public PilgrimageRouteSummaryDto generateRandomRoute(String category) {
         List<GangwonCity> belt = PilgrimageCityData.ALL_BELTS.get(random.nextInt(PilgrimageCityData.ALL_BELTS.size()));
 
         int maxSegments = Math.min(4, belt.size() - 1);
@@ -73,6 +75,7 @@ public class PilgrimageServiceImpl implements PilgrimageService {
         PilgrimageRoute route = PilgrimageRoute.builder()
                 .name(chain.get(0).name() + "-" + chain.get(chain.size() - 1).name() + " 자동 생성 순례길")
                 .description(chain.stream().map(GangwonCity::name).collect(Collectors.joining(" → ")) + "를 잇는 자동 생성 구간 코스")
+                .category(category)
                 .build();
 
         for (int i = 0; i < chain.size() - 1; i++) {
@@ -102,7 +105,7 @@ public class PilgrimageServiceImpl implements PilgrimageService {
         return "어려움";
     }
 
-    private PilgrimageSegmentDto toSegmentDto(PilgrimageSegment segment) {
+    private PilgrimageSegmentDto toSegmentDto(PilgrimageSegment segment, String category) {
         return PilgrimageSegmentDto.builder()
                 .sequenceOrder(segment.getSequenceOrder())
                 .fromCity(segment.getFromCity())
@@ -114,16 +117,30 @@ public class PilgrimageServiceImpl implements PilgrimageService {
                 .distanceKm(segment.getDistanceKm())
                 .difficulty(segment.getDifficulty())
                 .estimatedMinutes(segment.getEstimatedMinutes())
-                .spots(findSpotsAlongSegment(segment))
+                .spots(findSpotsAlongSegment(segment, category))
+                .path(routePath(segment))
                 .build();
     }
 
-    private List<BasePlaceDto> findSpotsAlongSegment(PilgrimageSegment segment) {
+    private List<Coordinate> routePath(PilgrimageSegment segment) {
+        List<Coordinate> path = kakaoDirectionsService.getRoutePath(
+                segment.getFromLat(), segment.getFromLng(), segment.getToLat(), segment.getToLng());
+
+        if (!path.isEmpty()) return path;
+
+        // 카카오 길찾기 실패 시 직선으로 대체
+        return List.of(
+                Coordinate.builder().lat(segment.getFromLat()).lng(segment.getFromLng()).build(),
+                Coordinate.builder().lat(segment.getToLat()).lng(segment.getToLng()).build()
+        );
+    }
+
+    private List<BasePlaceDto> findSpotsAlongSegment(PilgrimageSegment segment, String category) {
         try {
             List<BasePlaceDto> fromNearby = tourApiService.getNearbyPlaces(
-                    String.valueOf(segment.getFromLng()), String.valueOf(segment.getFromLat()));
+                    String.valueOf(segment.getFromLng()), String.valueOf(segment.getFromLat()), category);
             List<BasePlaceDto> toNearby = tourApiService.getNearbyPlaces(
-                    String.valueOf(segment.getToLng()), String.valueOf(segment.getToLat()));
+                    String.valueOf(segment.getToLng()), String.valueOf(segment.getToLat()), category);
 
             List<BasePlaceDto> merged = new java.util.ArrayList<>();
             merged.addAll(fromNearby == null ? Collections.emptyList() : fromNearby);
