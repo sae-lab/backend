@@ -1,6 +1,6 @@
 package com.se_lab.project.service;
 
-import com.se_lab.project.dto.GpxPoint;
+import com.se_lab.project.dto.GpxPointDto;
 import com.se_lab.project.dto.TrailDto;
 import com.se_lab.project.entity.Trail;
 import com.se_lab.project.entity.TrailPoint;
@@ -8,7 +8,9 @@ import com.se_lab.project.repository.TrailRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 
 @Service
@@ -25,11 +27,14 @@ public class TrailSyncService {
         List<TrailDto> trails =
                 durunubiApiService.getTrails();
 
+        Set<String> existingIds =
+                new HashSet<>(trailRepository.findAllCourseIds());
+
         System.out.println("가져온 코스 수 = " + trails.size());
 
         for(TrailDto dto : trails){
 
-            if (trailRepository.existsByCourseId(dto.getCourseId())){
+            if(existingIds.contains(dto.getCourseId())){
                 System.out.println("이미 존재 = " + dto.getCourseName());
                 continue;
             }
@@ -47,7 +52,7 @@ public class TrailSyncService {
 
 
 
-            List<GpxPoint> points =
+            List<GpxPointDto> points =
                     dto.getCoordinates();
 
 
@@ -57,7 +62,7 @@ public class TrailSyncService {
 
                 int sequence = 0;
 
-                for(GpxPoint point : points) {
+                for(GpxPointDto point : points) {
 
                     trail.addPoint(
                             TrailPoint.builder()
@@ -76,6 +81,7 @@ public class TrailSyncService {
             );
 
             trailRepository.save(trail);
+            existingIds.add(dto.getCourseId());
 
             System.out.println("저장 완료 = " + dto.getCourseName());
 

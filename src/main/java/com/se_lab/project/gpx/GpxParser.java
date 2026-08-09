@@ -1,6 +1,6 @@
 package com.se_lab.project.gpx;
 
-import com.se_lab.project.dto.GpxPoint;
+import com.se_lab.project.dto.GpxPointDto;
 import org.springframework.stereotype.Component;
 
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -12,9 +12,9 @@ import java.util.List;
 @Component
 public class GpxParser {
 
-    public List<GpxPoint> parse(String gpxXml) {
+    public List<GpxPointDto> parse(String gpxXml) {
 
-        List<GpxPoint> points = new ArrayList<>();
+        List<GpxPointDto> points = new ArrayList<>();
 
         try {
 
@@ -69,7 +69,7 @@ public class GpxParser {
 
 
                 points.add(
-                        new GpxPoint(
+                        new GpxPointDto(
                                 lat,
                                 lon,
                                 elevation

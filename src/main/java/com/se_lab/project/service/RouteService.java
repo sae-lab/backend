@@ -11,10 +11,4 @@ public interface RouteService {
     CourseDetailDto getRouteDetail(String id);
 
     List<HomeRecommendDto> getRandomRecommendRoutes(int count);
-
-    List<BasePlaceDto> getOptimalRoute(
-            double longitude,
-            double latitude,
-            int minutes
-    );
 }

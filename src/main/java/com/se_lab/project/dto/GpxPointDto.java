@@ -6,7 +6,7 @@ import lombok.*;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class GpxPoint {
+public class GpxPointDto {
 
     private Double lat;
 

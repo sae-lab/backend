@@ -14,8 +14,8 @@ import lombok.experimental.SuperBuilder;
 public class BasePlaceDto {
     private String title;
     private String addr1;
-    private double mapy;
-    private double mapx;
+    private double latitude;
+    private double longitude;
     private String thumbnailUrl;
     private String contentId;
     private String contentTypeId;

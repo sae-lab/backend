@@ -1,12 +1,11 @@
 package com.se_lab.project.service;
 
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
-import com.se_lab.project.dto.GpxPoint;
+import com.se_lab.project.dto.GpxPointDto;
 import com.se_lab.project.dto.TrailDto;
 import com.se_lab.project.dto.durunubi.DurunubiItem;
 import com.se_lab.project.dto.durunubi.DurunubiResponse;
 import com.se_lab.project.gpx.GpxParser;
-import com.se_lab.project.gpx.GpxSampler;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -22,7 +21,6 @@ public class DurunubiApiService {
     private final RestTemplate restTemplate;
     private final XmlMapper xmlMapper = new XmlMapper();
     private final GpxParser gpxParser;
-    private final GpxSampler gpxSampler;
 
 
     @Value("${walking-course.service-key}")
@@ -39,12 +37,10 @@ public class DurunubiApiService {
 
     public DurunubiApiService(
             RestTemplate restTemplate,
-            GpxParser gpxParser,
-            GpxSampler gpxSampler
+            GpxParser gpxParser
     ) {
         this.restTemplate = restTemplate;
         this.gpxParser = gpxParser;
-        this.gpxSampler = gpxSampler;
     }
 
 
@@ -92,10 +88,10 @@ public class DurunubiApiService {
         trails.forEach(trail ->
                 log.info("{} / {}", trail.getRegion(), trail.getCourseName())
         );
-        return parseXml(xml);
+        return trails;
     }
 
-    private List<GpxPoint> getGpxPoints(String url) {
+    private List<GpxPointDto> getGpxPoints(String url) {
 
         String gpx =
                 restTemplate.getForObject(url, String.class);
@@ -128,7 +124,7 @@ public class DurunubiApiService {
 
     private TrailDto convertToTrailDto(DurunubiItem item) {
 
-        List<GpxPoint> points = List.of();
+        List<GpxPointDto> points = List.of();
 
         try {
 

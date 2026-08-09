@@ -16,7 +16,7 @@ public class PlaceController {
         this.tourApiService = tourApiService;
     }
 
-    // ⭐️ 기존 public String -> public List<PlaceDto> 로 변경!
+    // 기존 public String -> public List<PlaceDto> 로 변경!
     @GetMapping("/nearby")
     public List<BasePlaceDto> getNearbyPlaces(@RequestParam String mapX, @RequestParam String mapY) {
         return tourApiService.getNearbyPlaces(mapX, mapY);
