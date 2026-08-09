@@ -32,19 +32,6 @@ public class Trail {
 
     private String gpxUrl;
 
-
-    // 시작점
-    private Double startLat;
-
-    private Double startLng;
-
-
-    // 종료점
-    private Double endLat;
-
-    private Double endLng;
-
-
     @Builder.Default
     @OneToMany(
             mappedBy = "trail",

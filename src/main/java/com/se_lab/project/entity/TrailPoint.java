@@ -1,5 +1,6 @@
 package com.se_lab.project.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -26,6 +27,7 @@ public class TrailPoint {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "trail_id")
     @Setter
+    @JsonIgnore
     private Trail trail;
 
 }
