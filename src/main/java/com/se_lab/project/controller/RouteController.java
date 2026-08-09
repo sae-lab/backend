@@ -1,14 +1,8 @@
 package com.se_lab.project.controller;
 
 import com.se_lab.project.dto.BasePlaceDto;
-<<<<<<< HEAD
-=======
-import com.se_lab.project.dto.Coordinate;
-import com.se_lab.project.dto.TrailRouteResponse;
->>>>>>> origin/dev
 import com.se_lab.project.dto.CourseDetailDto;
 import com.se_lab.project.dto.HomeRecommendDto;
-import com.se_lab.project.service.KakaoDirectionsService;
 import com.se_lab.project.service.RouteService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +18,6 @@ import java.util.List;
 public class RouteController {
 
     private final RouteService routeService;
-    private final KakaoDirectionsService kakaoDirectionsService;
 
     @GetMapping
     public ResponseEntity<List<BasePlaceDto>> getRoutes(
@@ -50,35 +43,4 @@ public class RouteController {
         List<HomeRecommendDto> randomRoutes = routeService.getRandomRecommendRoutes(3);
         return ResponseEntity.ok(randomRoutes);
     }
-<<<<<<< HEAD
-=======
-
-    @GetMapping("/optimal")
-    public ResponseEntity<List<BasePlaceDto>> getOptimalRoute(
-            @RequestParam double longitude,
-            @RequestParam double latitude,
-            @RequestParam int minutes) {
-
-        return ResponseEntity.ok(
-                routeService.getOptimalRoute(longitude, latitude, minutes)
-        );
-    }
-    // 구간(현재위치→스팟1→스팟2...)별 실제 도보 경로 좌표. 프론트가 다리(leg)별로 호출해서 이어붙인다.
-    @GetMapping("/path")
-    public ResponseEntity<List<Coordinate>> getWalkPath(
-            @RequestParam double fromLng,
-            @RequestParam double fromLat,
-            @RequestParam double toLng,
-            @RequestParam double toLat) {
-        return ResponseEntity.ok(kakaoDirectionsService.getRoutePath(fromLat, fromLng, toLat, toLng));
-    }
-
-    @GetMapping("/optimal/trail")
-    public ResponseEntity<TrailRouteResponse> getOptimalTrailRoute(
-            @RequestParam double userX,
-            @RequestParam double userY,
-            @RequestParam int minutes) {
-        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
-    }
->>>>>>> origin/dev
 }
