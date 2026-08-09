@@ -26,12 +26,13 @@ import java.util.stream.Collectors;
 public class PilgrimageServiceImpl implements PilgrimageService {
 
     private static final Logger logger = LoggerFactory.getLogger(PilgrimageServiceImpl.class);
-    private static final int SPOTS_PER_SEGMENT = 5;
+    private static final int WAYPOINTS_PER_SEGMENT = 10;
     private static final double WALKING_SPEED_KMH = 4.0;
 
     private final PilgrimageRouteRepository pilgrimageRouteRepository;
     private final TourApiService tourApiService;
     private final KakaoDirectionsService kakaoDirectionsService;
+    private final OsrmWalkingDirectionsService osrmWalkingDirectionsService;
     private final java.util.Random random = new java.util.Random();
 
     @Override
@@ -106,6 +107,8 @@ public class PilgrimageServiceImpl implements PilgrimageService {
     }
 
     private PilgrimageSegmentDto toSegmentDto(PilgrimageSegment segment, String category) {
+        List<Coordinate> path = routePath(segment);
+
         return PilgrimageSegmentDto.builder()
                 .sequenceOrder(segment.getSequenceOrder())
                 .fromCity(segment.getFromCity())
@@ -117,38 +120,60 @@ public class PilgrimageServiceImpl implements PilgrimageService {
                 .distanceKm(segment.getDistanceKm())
                 .difficulty(segment.getDifficulty())
                 .estimatedMinutes(segment.getEstimatedMinutes())
-                .spots(findSpotsAlongSegment(segment, category))
-                .path(routePath(segment))
+                .spots(findSpotsAlongSegment(segment, category, path))
+                .path(path)
                 .build();
     }
 
     private List<Coordinate> routePath(PilgrimageSegment segment) {
-        List<Coordinate> path = kakaoDirectionsService.getRoutePath(
+        // 1순위: OSRM 도보 프로필(실제 걷는 경로). 2순위: 카카오 자동차 경로.
+        // 3순위: 직선. 거리/난이도/소요시간 계산에는 어느 쪽이든 영향 없음(직선거리 기반 유지).
+        List<Coordinate> path = osrmWalkingDirectionsService.getWalkingPath(
                 segment.getFromLat(), segment.getFromLng(), segment.getToLat(), segment.getToLng());
-
         if (!path.isEmpty()) return path;
 
-        // 카카오 길찾기 실패 시 직선으로 대체
+        path = kakaoDirectionsService.getRoutePath(
+                segment.getFromLat(), segment.getFromLng(), segment.getToLat(), segment.getToLng());
+        if (!path.isEmpty()) return path;
+
         return List.of(
                 Coordinate.builder().lat(segment.getFromLat()).lng(segment.getFromLng()).build(),
                 Coordinate.builder().lat(segment.getToLat()).lng(segment.getToLng()).build()
         );
     }
 
-    private List<BasePlaceDto> findSpotsAlongSegment(PilgrimageSegment segment, String category) {
+    // 경로 중간중간(25%, 50%, 75% 지점)도 훑어서, 양 끝 도시에만 몰리지 않고
+    // 구간 전체에 걸쳐 웨이포인트가 나오도록 한다.
+    private static final double[] WAYPOINT_SAMPLE_RATIOS = {0.25, 0.5, 0.75};
+
+    private List<Coordinate> sampleWaypoints(List<Coordinate> path) {
+        if (path.size() < 3) return Collections.emptyList();
+
+        List<Coordinate> samples = new java.util.ArrayList<>();
+        for (double ratio : WAYPOINT_SAMPLE_RATIOS) {
+            int index = (int) Math.round((path.size() - 1) * ratio);
+            samples.add(path.get(index));
+        }
+        return samples;
+    }
+
+    private List<BasePlaceDto> findSpotsAlongSegment(PilgrimageSegment segment, String category, List<Coordinate> path) {
         try {
-            List<BasePlaceDto> fromNearby = tourApiService.getNearbyPlaces(
-                    String.valueOf(segment.getFromLng()), String.valueOf(segment.getFromLat()), category);
-            List<BasePlaceDto> toNearby = tourApiService.getNearbyPlaces(
-                    String.valueOf(segment.getToLng()), String.valueOf(segment.getToLat()), category);
+            List<Coordinate> searchPoints = new java.util.ArrayList<>();
+            searchPoints.add(Coordinate.builder().lat(segment.getFromLat()).lng(segment.getFromLng()).build());
+            searchPoints.addAll(sampleWaypoints(path));
+            searchPoints.add(Coordinate.builder().lat(segment.getToLat()).lng(segment.getToLng()).build());
 
             List<BasePlaceDto> merged = new java.util.ArrayList<>();
-            merged.addAll(fromNearby == null ? Collections.emptyList() : fromNearby);
-            merged.addAll(toNearby == null ? Collections.emptyList() : toNearby);
+            for (Coordinate point : searchPoints) {
+                List<BasePlaceDto> nearby = tourApiService.getNearbyPlaces(
+                        String.valueOf(point.getLng()), String.valueOf(point.getLat()), category);
+                if (nearby != null) merged.addAll(nearby);
+            }
 
             return merged.stream()
                     .filter(distinctByTitle())
-                    .limit(SPOTS_PER_SEGMENT)
+                    .limit(WAYPOINTS_PER_SEGMENT)
                     .collect(Collectors.toList());
         } catch (Exception e) {
             logger.warn("구간 스팟 조회 실패 ({} -> {}): {}", segment.getFromCity(), segment.getToCity(), e.getMessage());
