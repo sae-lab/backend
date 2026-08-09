@@ -5,10 +5,12 @@ import com.se_lab.project.entity.PilgrimageSegment;
 import com.se_lab.project.repository.PilgrimageRouteRepository;
 import com.se_lab.project.service.TrailSyncService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 import com.se_lab.project.repository.TrailRepository;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class PilgrimageDataSeeder implements CommandLineRunner {
@@ -19,11 +21,15 @@ public class PilgrimageDataSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        if (trailRepository.count() == 0) {
+            try {
+                trailSyncService.syncTrails();
+            } catch (Exception e) {
+                // 두루누비 API 키가 없거나 호출이 실패해도 앱 부팅 자체는 막지 않는다.
+                log.warn("두루누비 트레일 동기화 실패, 건너뜀: {}", e.getMessage());
+            }
+        }
 
-//        if(trailRepository.count() == 0){
-//            trailSyncService.syncTrails();
-//        }
-        trailSyncService.syncTrails();
         String identifier = "seed-gangneung-donghae-samcheok";
 
         if (pilgrimageRouteRepository.existsByIdentifier(identifier)) {
@@ -57,5 +63,7 @@ public class PilgrimageDataSeeder implements CommandLineRunner {
                 .difficulty("보통")
                 .estimatedMinutes(252)
                 .build());
+
+        pilgrimageRouteRepository.save(route);
     }
 }

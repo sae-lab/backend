@@ -17,6 +17,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class RouteServiceImpl implements RouteService {
 
+    private static final int WALKING_STOPOVER_MINUTES = 15;
+
     private boolean isWalkingPlace(BasePlaceDto place) {
 
         String title = place.getTitle();
@@ -80,6 +82,59 @@ public class RouteServiceImpl implements RouteService {
                 .collect(Collectors.toList());
     }
 
+<<<<<<< HEAD
+=======
+    @Override
+    public List<BasePlaceDto> getOptimalRoute(
+            double longitude,
+            double latitude,
+            int minutes) {
+        // 1. 내 주변(현재 좌표 x, y)의 관광지/코스 후보 조회 (반경 10km 내외)
+        List<BasePlaceDto> candidates = tourApiService.getNearbyPlaces(
+                String.valueOf(longitude),
+                String.valueOf(latitude));
+
+        logNearbyCandidateCount(candidates);
+
+        // 여기 추가
+        for (BasePlaceDto c : candidates) {
+            log.info(
+                    "API 후보: {} / type={} / cat1={} / cat2={} / cat3={}",
+                    c.getTitle(),
+                    c.getContentTypeId(),
+                    c.getCat1(),
+                    c.getCat2(),
+                    c.getCat3()
+            );
+        }
+
+        candidates = filterWalkingCandidates(candidates);
+        // 관광 방문(90분)이 아니라 잠깐 들르는 산책 스팟이라, 30/60분 예산에서도
+        // 실제로 경로에 포함될 수 있도록 짧은 체류시간을 준다.
+        candidates.forEach(p -> p.setEstimatedStayTime(WALKING_STOPOVER_MINUTES));
+        
+        // 로그
+
+        log.info("필터 이후 후보 개수: {}", candidates.size());
+
+        for(BasePlaceDto c : candidates){
+            log.info("필터 통과: {}", c.getTitle());
+        }
+        
+        // 로그
+
+        if (candidates.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 3. 플래너를 통해 가용 시간(minutes)에 최적화된 경로 생성
+        List<BasePlaceDto> result = routePlanner.generateOptimalRoute(longitude, latitude, minutes, candidates);
+
+        logGeneratedRouteCount(result);
+        return result;
+    }
+
+>>>>>>> origin/dev
     private void logNearbyCandidateCount(List<BasePlaceDto> candidates) {
         log.info("내 주변 조회된 후보지 개수: {}", candidates != null ? candidates.size() : 0);
     }

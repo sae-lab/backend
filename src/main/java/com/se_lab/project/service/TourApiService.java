@@ -48,7 +48,12 @@ public class TourApiService {
 
     @Cacheable(value = "nearbyPlaces", key = "#mapX + '_' + #mapY")
     public List<BasePlaceDto> getNearbyPlaces(String mapX, String mapY) {
-        String fullUrl = UriComponentsBuilder.fromHttpUrl(baseUrl + locationBasedEndpoint)
+        return getNearbyPlaces(mapX, mapY, null);
+    }
+
+    // contentTypeId가 주어지면 해당 카테고리로만 필터링 (순례길 자동생성 카테고리 선택용)
+    public List<BasePlaceDto> getNearbyPlaces(String mapX, String mapY, String contentTypeId) {
+        UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromHttpUrl(baseUrl + locationBasedEndpoint)
                 .queryParam("serviceKey", serviceKey)
                 .queryParam("MobileOS", "ETC")
                 .queryParam("MobileApp", "KangwonRoad")
@@ -57,9 +62,13 @@ public class TourApiService {
                 .queryParam("mapY", mapY)
                 .queryParam("radius", "10000")
                 .queryParam("numOfRows", "100")
-                .queryParam("arrange", "O")
-                .build(false)
-                .toUriString();
+                .queryParam("arrange", "O");
+
+        if (contentTypeId != null && !contentTypeId.isEmpty()) {
+            uriBuilder.queryParam("contentTypeId", contentTypeId);
+        }
+
+        String fullUrl = uriBuilder.build(false).toUriString();
 
         log.debug("Final URL for getNearbyPlaces: {}", fullUrl);
 
