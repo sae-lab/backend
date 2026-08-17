@@ -40,6 +40,8 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/pilgrimages/generate").authenticated()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/pilgrimages/**").permitAll()
                         .requestMatchers("/api/v1/trails/**").permitAll()
+                        .requestMatchers("/uploads/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/user-routes/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(new JwtAuthenticationFilter(jwtUtil), UsernamePasswordAuthenticationFilter.class);
