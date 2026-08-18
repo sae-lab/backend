@@ -16,11 +16,14 @@ public class UserRouteDetailDto {
     private Long id;
     private String title;
     private String description;
+    private String routeType;
     private String authorName;
     private boolean mine;
     private LocalDateTime createdAt;
     private List<UserRouteWaypointDto> waypoints;
     private long likeCount;
     private boolean likedByMe;
+    private long scrapCount;
+    private boolean scrapedByMe;
     private List<UserRouteCommentDto> comments;
 }

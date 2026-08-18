@@ -8,10 +8,12 @@ import com.se_lab.project.entity.User;
 import com.se_lab.project.entity.UserRoute;
 import com.se_lab.project.entity.UserRouteComment;
 import com.se_lab.project.entity.UserRouteLike;
+import com.se_lab.project.entity.UserRouteScrap;
 import com.se_lab.project.entity.UserRouteWaypoint;
 import com.se_lab.project.repository.UserRouteCommentRepository;
 import com.se_lab.project.repository.UserRouteLikeRepository;
 import com.se_lab.project.repository.UserRouteRepository;
+import com.se_lab.project.repository.UserRouteScrapRepository;
 import com.se_lab.project.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -30,16 +33,51 @@ public class UserRouteServiceImpl implements UserRouteService {
 
     private final UserRouteRepository userRouteRepository;
     private final UserRouteLikeRepository userRouteLikeRepository;
+    private final UserRouteScrapRepository userRouteScrapRepository;
     private final UserRouteCommentRepository userRouteCommentRepository;
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
 
     @Override
-    public List<UserRouteSummaryDto> getAllRoutes(String currentUserEmail) {
+    public List<UserRouteSummaryDto> getAllRoutes(String currentUserEmail, String routeType, String sort) {
         User currentUser = findUserOrNull(currentUserEmail);
-        return userRouteRepository.findAllByOrderByCreatedAtDesc().stream()
+        List<UserRoute> routes = routeType == null
+                ? userRouteRepository.findAllByOrderByCreatedAtDesc()
+                : userRouteRepository.findAllByRouteTypeOrderByCreatedAtDesc(routeType);
+        List<UserRouteSummaryDto> dtos = routes.stream()
                 .map(route -> toSummaryDto(route, currentUser))
                 .collect(Collectors.toList());
+        return sortSummaries(dtos, sort);
+    }
+
+    @Override
+    public List<UserRouteSummaryDto> getMyRoutes(String authorEmail, String routeType) {
+        User author = findUser(authorEmail);
+        List<UserRoute> routes = routeType == null
+                ? userRouteRepository.findByAuthorOrderByCreatedAtDesc(author)
+                : userRouteRepository.findByAuthorAndRouteTypeOrderByCreatedAtDesc(author, routeType);
+        return routes.stream()
+                .map(route -> toSummaryDto(route, author))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<UserRouteSummaryDto> getMyScraps(String userEmail, String routeType) {
+        User user = findUser(userEmail);
+        return userRouteScrapRepository.findByUserOrderByScrapedAtDesc(user).stream()
+                .map(UserRouteScrap::getRoute)
+                .filter(route -> routeType == null || routeType.equals(route.getRouteType()))
+                .map(route -> toSummaryDto(route, user))
+                .collect(Collectors.toList());
+    }
+
+    private List<UserRouteSummaryDto> sortSummaries(List<UserRouteSummaryDto> dtos, String sort) {
+        if ("likes".equals(sort)) {
+            dtos.sort(Comparator.comparingLong(UserRouteSummaryDto::getLikeCount).reversed());
+        } else if ("scraps".equals(sort)) {
+            dtos.sort(Comparator.comparingLong(UserRouteSummaryDto::getScrapCount).reversed());
+        }
+        return dtos;
     }
 
     @Override
@@ -58,30 +96,36 @@ public class UserRouteServiceImpl implements UserRouteService {
 
         long likeCount = userRouteLikeRepository.countByRoute(route);
         boolean likedByMe = currentUser != null && userRouteLikeRepository.existsByUserAndRoute(currentUser, route);
+        long scrapCount = userRouteScrapRepository.countByRoute(route);
+        boolean scrapedByMe = currentUser != null && userRouteScrapRepository.existsByUserAndRoute(currentUser, route);
         boolean mine = currentUser != null && route.getAuthor().getId().equals(currentUser.getId());
 
         return UserRouteDetailDto.builder()
                 .id(route.getId())
                 .title(route.getTitle())
                 .description(route.getDescription())
+                .routeType(route.getRouteType())
                 .authorName(route.getAuthor().getName())
                 .mine(mine)
                 .createdAt(route.getCreatedAt())
                 .waypoints(waypointDtos)
                 .likeCount(likeCount)
                 .likedByMe(likedByMe)
+                .scrapCount(scrapCount)
+                .scrapedByMe(scrapedByMe)
                 .comments(commentDtos)
                 .build();
     }
 
     @Override
     @Transactional
-    public Long createRoute(String authorEmail, String title, String description) {
+    public Long createRoute(String authorEmail, String title, String description, String routeType) {
         User author = findUser(authorEmail);
         UserRoute route = UserRoute.builder()
                 .author(author)
                 .title(title)
                 .description(description)
+                .routeType(routeType != null ? routeType : "WALK")
                 .build();
         return userRouteRepository.save(route).getId();
     }
@@ -130,6 +174,24 @@ public class UserRouteServiceImpl implements UserRouteService {
 
     @Override
     @Transactional
+    public boolean toggleScrap(Long routeId, String userEmail) {
+        UserRoute route = userRouteRepository.findById(routeId)
+                .orElseThrow(() -> new EntityNotFoundException("게시글을 찾을 수 없습니다: " + routeId));
+        User user = findUser(userEmail);
+
+        return userRouteScrapRepository.findByUserAndRoute(user, route)
+                .map(existing -> {
+                    userRouteScrapRepository.delete(existing);
+                    return false;
+                })
+                .orElseGet(() -> {
+                    userRouteScrapRepository.save(UserRouteScrap.builder().user(user).route(route).build());
+                    return true;
+                });
+    }
+
+    @Override
+    @Transactional
     public UserRouteCommentDto addComment(Long routeId, String authorEmail, String content) {
         UserRoute route = userRouteRepository.findById(routeId)
                 .orElseThrow(() -> new EntityNotFoundException("게시글을 찾을 수 없습니다: " + routeId));
@@ -161,12 +223,15 @@ public class UserRouteServiceImpl implements UserRouteService {
         long likeCount = userRouteLikeRepository.countByRoute(route);
         long commentCount = userRouteCommentRepository.countByRoute(route);
         boolean likedByMe = currentUser != null && userRouteLikeRepository.existsByUserAndRoute(currentUser, route);
+        long scrapCount = userRouteScrapRepository.countByRoute(route);
+        boolean scrapedByMe = currentUser != null && userRouteScrapRepository.existsByUserAndRoute(currentUser, route);
         String thumbnailUrl = route.getWaypoints().isEmpty() ? "" : route.getWaypoints().get(0).getPhotoUrl();
 
         return UserRouteSummaryDto.builder()
                 .id(route.getId())
                 .title(route.getTitle())
                 .description(route.getDescription())
+                .routeType(route.getRouteType())
                 .authorName(route.getAuthor().getName())
                 .createdAt(route.getCreatedAt())
                 .thumbnailUrl(thumbnailUrl)
@@ -174,6 +239,8 @@ public class UserRouteServiceImpl implements UserRouteService {
                 .likeCount(likeCount)
                 .commentCount(commentCount)
                 .likedByMe(likedByMe)
+                .scrapCount(scrapCount)
+                .scrapedByMe(scrapedByMe)
                 .build();
     }
 

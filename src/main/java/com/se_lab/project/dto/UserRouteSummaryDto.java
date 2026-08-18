@@ -15,6 +15,7 @@ public class UserRouteSummaryDto {
     private Long id;
     private String title;
     private String description;
+    private String routeType;
     private String authorName;
     private LocalDateTime createdAt;
     private String thumbnailUrl;
@@ -22,4 +23,6 @@ public class UserRouteSummaryDto {
     private long likeCount;
     private long commentCount;
     private boolean likedByMe;
+    private long scrapCount;
+    private boolean scrapedByMe;
 }

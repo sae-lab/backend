@@ -23,8 +23,24 @@ public class UserRouteController {
     private final UserRouteService userRouteService;
 
     @GetMapping
-    public ResponseEntity<List<UserRouteSummaryDto>> getAllRoutes() {
-        return ResponseEntity.ok(userRouteService.getAllRoutes(currentUserEmail()));
+    public ResponseEntity<List<UserRouteSummaryDto>> getAllRoutes(
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String sort) {
+        return ResponseEntity.ok(userRouteService.getAllRoutes(currentUserEmail(), type, sort));
+    }
+
+    @GetMapping("/mine")
+    public ResponseEntity<?> getMyRoutes(@RequestParam(required = false) String type) {
+        String email = requireLoggedIn();
+        if (email == null) return unauthorized();
+        return ResponseEntity.ok(userRouteService.getMyRoutes(email, type));
+    }
+
+    @GetMapping("/scraps")
+    public ResponseEntity<?> getMyScraps(@RequestParam(required = false) String type) {
+        String email = requireLoggedIn();
+        if (email == null) return unauthorized();
+        return ResponseEntity.ok(userRouteService.getMyScraps(email, type));
     }
 
     @GetMapping("/{id}")
@@ -38,7 +54,8 @@ public class UserRouteController {
 
     @PostMapping
     public ResponseEntity<Map<String, Long>> createRoute(@RequestBody Map<String, String> body) {
-        Long id = userRouteService.createRoute(currentUserEmail(), body.get("title"), body.get("description"));
+        Long id = userRouteService.createRoute(
+                currentUserEmail(), body.get("title"), body.get("description"), body.get("routeType"));
         return ResponseEntity.ok(Map.of("id", id));
     }
 
@@ -70,6 +87,16 @@ public class UserRouteController {
         }
     }
 
+    @PostMapping("/{id}/scrap")
+    public ResponseEntity<?> toggleScrap(@PathVariable Long id) {
+        try {
+            boolean scrapped = userRouteService.toggleScrap(id, currentUserEmail());
+            return ResponseEntity.ok(Map.of("scrapped", scrapped));
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @PostMapping("/{id}/comments")
     public ResponseEntity<?> addComment(@PathVariable Long id, @RequestBody Map<String, String> body) {
         try {
@@ -94,5 +121,15 @@ public class UserRouteController {
 
     private String currentUserEmail() {
         return SecurityContextHolder.getContext().getAuthentication().getName();
+    }
+
+    private String requireLoggedIn() {
+        String email = currentUserEmail();
+        if (email == null || email.isBlank() || "anonymousUser".equals(email)) return null;
+        return email;
+    }
+
+    private ResponseEntity<?> unauthorized() {
+        return ResponseEntity.status(401).body(Map.of("message", "로그인이 필요합니다."));
     }
 }

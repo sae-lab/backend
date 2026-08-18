@@ -32,6 +32,10 @@ public class UserRoute {
     @Column(length = 1000)
     private String description;
 
+    // "WALK"(산책) 또는 "PILGRIMAGE"(순례길)
+    @Builder.Default
+    private String routeType = "WALK";
+
     @Builder.Default
     @Column(nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
