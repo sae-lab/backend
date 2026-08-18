@@ -1,11 +1,15 @@
 package com.se_lab.project.controller;
 
 import com.se_lab.project.dto.BasePlaceDto;
+import com.se_lab.project.dto.Coordinate;
 import com.se_lab.project.dto.CourseDetailDto;
 import com.se_lab.project.dto.HomeRecommendDto;
+import com.se_lab.project.dto.TrailRouteResponse;
+import com.se_lab.project.service.KakaoDirectionsService;
 import com.se_lab.project.service.RouteService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,6 +22,7 @@ import java.util.List;
 public class RouteController {
 
     private final RouteService routeService;
+    private final KakaoDirectionsService kakaoDirectionsService;
 
     @GetMapping
     public ResponseEntity<List<BasePlaceDto>> getRoutes(
@@ -42,5 +47,30 @@ public class RouteController {
     public ResponseEntity<List<HomeRecommendDto>> getRandomRecommendRoutes() {
         List<HomeRecommendDto> randomRoutes = routeService.getRandomRecommendRoutes(3);
         return ResponseEntity.ok(randomRoutes);
+    }
+
+    @GetMapping("/optimal")
+    public ResponseEntity<List<BasePlaceDto>> getOptimalRoute(
+            @RequestParam double longitude,
+            @RequestParam double latitude,
+            @RequestParam int minutes) {
+        return ResponseEntity.ok(routeService.getOptimalRoute(longitude, latitude, minutes));
+    }
+
+    @GetMapping("/path")
+    public ResponseEntity<List<Coordinate>> getWalkPath(
+            @RequestParam double fromLng,
+            @RequestParam double fromLat,
+            @RequestParam double toLng,
+            @RequestParam double toLat) {
+        return ResponseEntity.ok(kakaoDirectionsService.getRoutePath(fromLat, fromLng, toLat, toLng));
+    }
+
+    @GetMapping("/optimal/trail")
+    public ResponseEntity<TrailRouteResponse> getOptimalTrailRoute(
+            @RequestParam double userX,
+            @RequestParam double userY,
+            @RequestParam int minutes) {
+        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
     }
 }

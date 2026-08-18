@@ -4,6 +4,7 @@ import com.se_lab.project.constants.TourApiConstants;
 import com.se_lab.project.dto.BasePlaceDto;
 import com.se_lab.project.dto.CourseDetailDto;
 import com.se_lab.project.dto.HomeRecommendDto;
+import com.se_lab.project.planner.RoutePlanner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class RouteServiceImpl implements RouteService {
+
+    private static final int WALKING_STOPOVER_MINUTES = 15;
 
     private boolean isWalkingPlace(BasePlaceDto place) {
 
@@ -35,6 +38,7 @@ public class RouteServiceImpl implements RouteService {
     }
 
     private final TourApiService tourApiService;
+    private final RoutePlanner routePlanner;
 
     @Override
     public List<BasePlaceDto> getAllRoutes(String category, int page, int size) {
@@ -78,6 +82,23 @@ public class RouteServiceImpl implements RouteService {
                 .limit(count)
                 .map(place -> new HomeRecommendDto(place.getTitle(), place.getAddr1(), place.getLatitude(), place.getLongitude(), place.getThumbnailUrl(), place.getContentId(), "보통"))
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<BasePlaceDto> getOptimalRoute(double longitude, double latitude, int minutes) {
+        List<BasePlaceDto> candidates = tourApiService.getNearbyPlaces(
+                String.valueOf(longitude), String.valueOf(latitude));
+
+        candidates = filterWalkingCandidates(candidates);
+        if (candidates.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        candidates.forEach(place -> place.setEstimatedStayTime(WALKING_STOPOVER_MINUTES));
+        List<BasePlaceDto> result = routePlanner.generateOptimalRoute(
+                longitude, latitude, minutes, candidates);
+        logGeneratedRouteCount(result);
+        return result;
     }
 
     private void logNearbyCandidateCount(List<BasePlaceDto> candidates) {
