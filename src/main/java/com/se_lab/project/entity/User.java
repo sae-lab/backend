@@ -1,4 +1,5 @@
 package com.se_lab.project.entity;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.Getter;
 
@@ -18,6 +19,7 @@ public class User {
 
     // ✨ Getter 추가
     // ✨ 진짜 로그인을 위한 비밀번호 필드 추가!
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @Column(nullable = false)
     private String password;
 

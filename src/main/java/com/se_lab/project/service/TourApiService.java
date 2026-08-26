@@ -69,9 +69,6 @@ public class TourApiService {
         }
 
         String fullUrl = uriBuilder.build(false).toUriString();
-
-        log.debug("Final URL for getNearbyPlaces: {}", fullUrl);
-
         return fetchAndParse(fullUrl, "getNearbyPlaces", true);
     }
 
@@ -89,7 +86,6 @@ public class TourApiService {
         if (contentTypeId != null && !contentTypeId.isEmpty()) uriBuilder.queryParam("contentTypeId", contentTypeId);
 
         String fullUrl = uriBuilder.build(false).toUriString();
-        log.debug("Final URL for getPlacesByArea: {}", fullUrl);
         return fetchAndParse(fullUrl, "getPlacesByArea", false);
     }
 
@@ -104,7 +100,6 @@ public class TourApiService {
                 .queryParam("arrange", "A");
 
         String fullUrl = uriBuilder.build(false).toUriString();
-        log.debug("Final URL for searchByKeyword: {}", fullUrl);
         return fetchAndParse(fullUrl, "searchByKeyword", false);
     }
 
@@ -113,7 +108,7 @@ public class TourApiService {
         try {
             jsonString = restTemplate.getForObject(fullUrl, String.class);
         } catch (Exception e) {
-            log.error("API 네트워크 호출 실패 [{}]: {}", methodName, e.getMessage());
+            log.warn("관광 API 호출 실패 [{}], type={}", methodName, e.getClass().getSimpleName());
             return new ArrayList<>();
         }
 

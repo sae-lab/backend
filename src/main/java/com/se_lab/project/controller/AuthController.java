@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.Map;
 
-@CrossOrigin(origins = "*")  // ⭐️ 이거 딱 한 줄 추가!! (모든 프론트엔드 접근 허용)
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {

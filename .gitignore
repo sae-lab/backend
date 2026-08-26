@@ -66,11 +66,14 @@ replay_pid*
 # Environment & Secrets
 # ==============================
 
-# Application configuration
-application.yml
+# Local-only application configuration
+application-local.yml
+application-*.local.yml
 
 # Environment variables
 .env
+.env.*
+!.env.example
 
 
 # ==============================
@@ -116,3 +119,4 @@ src/test/resources/*.gpx
 # Test Resources
 # ==============================
 
+/src/main/resources/application.yml
