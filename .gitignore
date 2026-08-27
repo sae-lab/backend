@@ -119,3 +119,4 @@ src/test/resources/*.gpx
 # Test Resources
 # ==============================
 
+/src/main/resources/application.yml
