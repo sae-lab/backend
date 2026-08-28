@@ -128,8 +128,8 @@ java -jar build/libs/*.jar
 
 ### 현재 주의사항
 
-- **확인된 사실**: `Dockerfile`과 `.dockerignore`는 현재 Git 미추적 상태다. Push 전에는 Render가 사용할 수 없다.
-- **확인된 사실**: `src/main/resources/application.yml`도 Git 미추적 상태다. Push되지 않으면 현재 환경변수 매핑과 `PORT` 설정이 원격 빌드에 포함되지 않는다.
+- **확인된 사실**: `Dockerfile`과 `.dockerignore`는 Git 추적 중이며 원격 Render 빌드에 포함된다.
+- **확인된 사실**: `src/main/resources/application.yml`은 Git 추적 중이며 환경변수 매핑과 `PORT` 설정이 원격 빌드에 포함된다.
 - **결정 필요**: 전용 HTTP health 구현 후 Dockerfile에도 `HEALTHCHECK`를 추가할지는 선택 사항이다. Render 외부 check만 사용할 수도 있다.
 
 ## 7. 생성·수정이 필요한 파일 목록
@@ -138,10 +138,10 @@ java -jar build/libs/*.jar
 
 | 파일 | 현재 상태 | 필요한 작업 | 우선순위 |
 | --- | --- | --- | --- |
-| `docs/deployment-plan.md` | 존재, Git 미추적 | 현재 구현 상태와 사용자 검증 절차 반영 | 반영 완료 |
-| `Dockerfile` | 존재, Git 미추적 | 내용 승인 후 Git 추가. 테스트/헬스/CA 전략에 따라 후속 수정 | 배포 전 필수 |
-| `.dockerignore` | 존재, Git 미추적 | 비밀·로컬 파일 제외 상태를 유지하고 Git 추가 | 배포 전 필수 |
-| `src/main/resources/application.yml` | 존재, Git 미추적 | `APP_SEED_ENABLED=false` 기본값 반영. 검증 후 Git 추가 | 코드 반영 완료/검증 필요 |
+| `docs/deployment-plan.md` | 존재, Git 추적 | 현재 구현 상태와 사용자 검증 절차 반영 | 반영 완료 |
+| `Dockerfile` | 존재, Git 추적 | 테스트/헬스/CA 전략에 따라 후속 수정 | 코드 반영 완료/검증 필요 |
+| `.dockerignore` | 존재, Git 추적 | 비밀·로컬 파일 제외 상태 검증 | 코드 반영 완료/검증 필요 |
+| `src/main/resources/application.yml` | 존재, Git 추적 | 환경변수 매핑과 기본값 검증 | 코드 반영 완료/검증 필요 |
 | `build.gradle` | 존재 | Actuator 및 migration 의존성, 테스트 게이트 결정 | 결정 필요 |
 | `SecurityConfig.java` | 수정됨 | `/test/**` 허용 제거, `/api/v1/admin/**` 명시적 차단. health 허용은 추후 결정 | 코드 반영 완료/검증 필요 |
 | `AuthController.java` | 수정됨 | 전체 와일드카드 `@CrossOrigin` 제거 | 코드 반영 완료/검증 필요 |
@@ -421,7 +421,7 @@ DB 메타데이터와 실제 파일의 생명주기가 달라질 수 있으므�
 
 | 등급 | 확인된 문제 | 배포 영향 | 필요한 조치 |
 | --- | --- | --- | --- |
-| 차단 | `Dockerfile`, `.dockerignore`, `application.yml`이 Git 미추적 | 원격 빌드에 Docker·환경 설정이 전달되지 않음 | 내용 승인 후 Git 추가·Push |
+| 해결 | `Dockerfile`, `.dockerignore`, `application.yml` Git 추적 완료 | 원격 빌드에 Docker·환경 설정 포함 | 커밋·Push 완료 |
 | 검증 대기 | `/test/**`, 평문 삽입, password 응답 | 코드에서 제거·직렬화 차단 완료 | 사용자 빌드 및 HTTP 부재 확인 |
 | 검증 대기 | 두루누비/관광 API key 포함 URL 로그 | 코드에서 URL·민감 예외 로그 제거 완료 | 사용자 실행 로그 확인; 과거 배포 로그에 노출됐다면 키 회전 |
 | 검증 대기 | 빈 DB 시작 시 자동 두루누비/GPX 호출과 DB write | `APP_SEED_ENABLED=false` 기본값으로 전체 seeder 비활성화 완료 | 사용자 기본 기동에서 미실행 확인 |
