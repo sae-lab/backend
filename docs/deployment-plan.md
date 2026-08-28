@@ -124,7 +124,7 @@ java -jar build/libs/*.jar
 - Java와 OS 런타임을 Render 로컬 런타임 변화와 분리한다.
 - 개발·CI·Render에서 동일한 실행 이미지를 검증할 수 있다.
 - 멀티 스테이지 빌드와 비루트 실행이 이미 적용돼 있다.
-- 모노레포 Root Directory를 `backend`로 고정하면 Docker 경로가 단순해진다.
+- Render의 Root Directory는 저장소 루트인 `.`로 지정해야 Dockerfile과 Docker Context 경로가 일치한다.
 
 ### 현재 주의사항
 

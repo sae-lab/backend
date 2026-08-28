@@ -43,7 +43,7 @@ file:
   upload-dir: "${FILE_UPLOAD_DIR:./.local/uploads/user-routes}"
 
 app:
-  # seed:
-    # enabled: ${APP_SEED_ENABLED:false}
+  seed:
+    enabled: ${APP_SEED_ENABLED:false}
   cors:
     allowed-origin-patterns: "${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:*}"
