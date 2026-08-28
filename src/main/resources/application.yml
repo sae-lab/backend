@@ -35,7 +35,7 @@ kakao:
 
 walking-course:
   base-url: "${ROUTE_API_BASE_URL}"
-  service-key: "${API_TOKEN}"
+  service-key: "${WALKING_COURSE_SERVICE_KEY:${API_TOKEN}}"
   endpoints:
     course-list: "/courseList"
 
