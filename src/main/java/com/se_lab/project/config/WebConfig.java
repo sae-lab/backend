@@ -16,7 +16,8 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         String location = "file:" + Paths.get(uploadDir).toAbsolutePath().normalize() + "/";
-        registry.addResourceHandler("/uploads/user-routes/**")
+        // uploadDir 아래 모든 서브디렉터리(user-routes, profiles, ...)를 공통으로 서빙한다.
+        registry.addResourceHandler("/uploads/**")
                 .addResourceLocations(location);
     }
 }
