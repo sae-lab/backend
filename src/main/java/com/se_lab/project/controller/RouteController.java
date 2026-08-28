@@ -38,7 +38,11 @@ public class RouteController {
 
     @GetMapping("/{id}/detail")
     public ResponseEntity<CourseDetailDto> getRouteDetail(@PathVariable String id) {
-        return ResponseEntity.ok(routeService.getRouteDetail(id));
+        CourseDetailDto detail = routeService.getRouteDetail(id);
+        if (detail == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(detail);
     }
 
     @GetMapping("/recommend/random")

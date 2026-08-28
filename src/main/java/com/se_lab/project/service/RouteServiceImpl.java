@@ -66,7 +66,7 @@ public class RouteServiceImpl implements RouteService {
 
     @Override
     public CourseDetailDto getRouteDetail(String id) {
-        return new CourseDetailDto("Placeholder Title", "Placeholder Address", 0.0, 0.0, "", id, "Detailed description of " + id);
+        return tourApiService.getPlaceDetail(id);
     }
 
     @Override
