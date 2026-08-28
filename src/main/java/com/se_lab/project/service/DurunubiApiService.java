@@ -58,12 +58,6 @@ public class DurunubiApiService {
                 .toUriString();
 
 
-        log.info(
-                "두루누비 요청 fullUrl={}",
-                fullUrl
-        );
-
-
         String xml =
                 restTemplate.getForObject(
                         fullUrl,
@@ -71,17 +65,10 @@ public class DurunubiApiService {
                 );
 
 
-        log.info(
+        log.debug(
                 "두루누비 XML 길이={}",
                 xml != null ? xml.length() : 0
         );
-
-
-        if (xml != null && !xml.isEmpty()) {
-            log.info(
-                    xml.substring(0, Math.min(xml.length(), 500))
-            );
-        }
 
         List<TrailDto> trails = parseXml(xml);
 
@@ -139,10 +126,9 @@ public class DurunubiApiService {
         } catch (Exception e) {
 
             log.warn(
-                    "GPX 처리 실패 course={}, url={}",
+                    "GPX 처리 실패 course={}, type={}",
                     item.getCrsKorNm(),
-                    item.getGpxpath(),
-                    e
+                    e.getClass().getSimpleName()
             );
         }
 

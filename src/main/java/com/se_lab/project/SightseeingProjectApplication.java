@@ -8,7 +8,10 @@ import io.github.cdimascio.dotenv.Dotenv;
 public class SightseeingProjectApplication {
 
     public static void main(String[] args) {
-        Dotenv.configure().systemProperties().load(); // 이 한 줄이 .env를 환경변수로 바꿔줌
+        Dotenv.configure()
+                .ignoreIfMissing()
+                .systemProperties()
+                .load();
         SpringApplication.run(SightseeingProjectApplication.class, args);
     }
 }

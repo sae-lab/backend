@@ -1,0 +1,49 @@
+server:
+  address: 0.0.0.0
+  port: ${PORT:8080}
+
+logging:
+  level:
+    com.se_lab.project: ${APP_LOG_LEVEL:INFO}
+
+spring:
+  datasource:
+    url: "${DB_URL}"
+    username: "${DB_USERNAME}"
+    password: "${DB_PASSWORD}"
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    show-sql: ${JPA_SHOW_SQL:false}
+
+jwt:
+  secret: "${JWT_SECRET}"
+  expiration_time: ${JWT_EXPIRATION_TIME:86400000}
+
+tour-api:
+  base-url: "${TOUR_API_BASE_URL}"
+  service-key: "${API_TOKEN}"
+  endpoints:
+    location-based: "/locationBasedList2"
+    area-based: "/areaBasedList2"
+    search-keyword: "/searchKeyword2"
+
+kakao:
+  api-key: "${KAKAO_API_KEY}"
+
+walking-course:
+  base-url: "${ROUTE_API_BASE_URL}"
+  service-key: "${WALKING_COURSE_SERVICE_KEY:${API_TOKEN}}"
+  endpoints:
+    course-list: "/courseList"
+
+file:
+  upload-dir: "${FILE_UPLOAD_DIR:./.local/uploads/user-routes}"
+
+app:
+  seed:
+    enabled: ${APP_SEED_ENABLED:false}
+  cors:
+    allowed-origin-patterns: "${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:*}"

@@ -7,11 +7,13 @@ import com.se_lab.project.service.TrailSyncService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import com.se_lab.project.repository.TrailRepository;
 
 @Slf4j
 @Component
+@ConditionalOnProperty(prefix = "app.seed", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class PilgrimageDataSeeder implements CommandLineRunner {
 
@@ -26,7 +28,7 @@ public class PilgrimageDataSeeder implements CommandLineRunner {
                 trailSyncService.syncTrails();
             } catch (Exception e) {
                 // 두루누비 API 키가 없거나 호출이 실패해도 앱 부팅 자체는 막지 않는다.
-                log.warn("두루누비 트레일 동기화 실패, 건너뜀: {}", e.getMessage());
+                log.warn("두루누비 트레일 동기화 실패, 건너뜀 (type={})", e.getClass().getSimpleName());
             }
         }
 
