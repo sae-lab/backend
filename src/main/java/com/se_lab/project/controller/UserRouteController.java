@@ -52,11 +52,36 @@ public class UserRouteController {
         }
     }
 
+    // 1번 웨이포인트에서 가장 가까운 순서대로 재정렬해 실제 도보 경로로 이어붙인 좌표들.
+    @GetMapping("/{id}/walking-path")
+    public ResponseEntity<?> getWalkingPath(@PathVariable Long id) {
+        try {
+            return ResponseEntity.ok(userRouteService.getWalkingPath(id));
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @PostMapping
     public ResponseEntity<Map<String, Long>> createRoute(@RequestBody Map<String, String> body) {
         Long id = userRouteService.createRoute(
                 currentUserEmail(), body.get("title"), body.get("description"), body.get("routeType"));
         return ResponseEntity.ok(Map.of("id", id));
+    }
+
+    @PostMapping("/from-pilgrimage/{pilgrimageRouteId}")
+    public ResponseEntity<?> createFromPilgrimage(
+            @PathVariable Long pilgrimageRouteId,
+            @RequestBody(required = false) Map<String, String> body) {
+        String routeType = body != null ? body.get("routeType") : null;
+        try {
+            Long id = userRouteService.createFromPilgrimage(pilgrimageRouteId, currentUserEmail(), routeType);
+            return ResponseEntity.ok(Map.of("id", id));
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(422).body(Map.of("message", e.getMessage()));
+        }
     }
 
     @PostMapping(value = "/{id}/waypoints", consumes = "multipart/form-data")
@@ -100,10 +125,33 @@ public class UserRouteController {
     @PostMapping("/{id}/comments")
     public ResponseEntity<?> addComment(@PathVariable Long id, @RequestBody Map<String, String> body) {
         try {
-            UserRouteCommentDto comment = userRouteService.addComment(id, currentUserEmail(), body.get("content"));
+            Long parentId = null;
+            String parentIdRaw = body.get("parentId");
+            if (parentIdRaw != null && !parentIdRaw.isBlank()) {
+                try {
+                    parentId = Long.valueOf(parentIdRaw);
+                } catch (NumberFormatException e) {
+                    return ResponseEntity.badRequest().body(Map.of("message", "parentId가 올바르지 않습니다."));
+                }
+            }
+            UserRouteCommentDto comment = userRouteService.addComment(id, currentUserEmail(), body.get("content"), parentId);
             return ResponseEntity.ok(comment);
         } catch (EntityNotFoundException e) {
             return ResponseEntity.notFound().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteRoute(@PathVariable Long id) {
+        try {
+            userRouteService.deleteRoute(id, currentUserEmail());
+            return ResponseEntity.ok().build();
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(403).body(Map.of("message", e.getMessage()));
         }
     }
 

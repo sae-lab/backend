@@ -39,7 +39,7 @@ public class UserRouteWaypoint {
     @Column(nullable = false)
     private double lng;
 
-    // 로컬 디스크에 저장된 업로드 사진에 접근하는 URL 경로 (예: /uploads/user-routes/xxx.jpg)
-    @Column(nullable = false)
+    // 로컬 디스크에 저장된 업로드 사진의 상대경로(예: /uploads/user-routes/xxx.jpg) 또는
+    // AI 순례길에서 게시물로 변환된 경우 외부(Tour API) 절대 URL. null 허용 — 사진이 없을 수도 있다.
     private String photoUrl;
 }

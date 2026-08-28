@@ -1,5 +1,9 @@
 package com.se_lab.project.service;
 
+import com.se_lab.project.dto.BasePlaceDto;
+import com.se_lab.project.dto.Coordinate;
+import com.se_lab.project.dto.PilgrimageRouteDetailDto;
+import com.se_lab.project.dto.PilgrimageSegmentDto;
 import com.se_lab.project.dto.UserRouteCommentDto;
 import com.se_lab.project.dto.UserRouteDetailDto;
 import com.se_lab.project.dto.UserRouteSummaryDto;
@@ -22,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -37,6 +42,12 @@ public class UserRouteServiceImpl implements UserRouteService {
     private final UserRouteCommentRepository userRouteCommentRepository;
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
+    private final PilgrimageService pilgrimageService;
+    private final OsrmWalkingDirectionsService osrmWalkingDirectionsService;
+
+    // 이보다 웨이포인트가 많으면(예: AI 순례길에서 옮겨진 대형 게시물) 다리(leg)마다
+    // 외부 도보 경로 API를 부르는 비용이 너무 커져서, 재정렬만 하고 직선으로 잇는다.
+    private static final int MAX_WAYPOINTS_FOR_REAL_ROUTING = 20;
 
     @Override
     public List<UserRouteSummaryDto> getAllRoutes(String currentUserEmail, String routeType, String sort) {
@@ -90,8 +101,8 @@ public class UserRouteServiceImpl implements UserRouteService {
                 .map(this::toWaypointDto)
                 .collect(Collectors.toList());
 
-        List<UserRouteCommentDto> commentDtos = userRouteCommentRepository.findByRouteOrderByCreatedAtAsc(route).stream()
-                .map(comment -> toCommentDto(comment, currentUser))
+        List<UserRouteCommentDto> commentDtos = userRouteCommentRepository.findByRouteAndParentIsNullOrderByCreatedAtAsc(route).stream()
+                .map(comment -> toCommentDtoWithReplies(comment, currentUser))
                 .collect(Collectors.toList());
 
         long likeCount = userRouteLikeRepository.countByRoute(route);
@@ -105,7 +116,8 @@ public class UserRouteServiceImpl implements UserRouteService {
                 .title(route.getTitle())
                 .description(route.getDescription())
                 .routeType(route.getRouteType())
-                .authorName(route.getAuthor().getName())
+                .authorName(route.getAuthor().getDisplayName())
+                .authorProfileImageUrl(route.getAuthor().getProfileImageUrl())
                 .mine(mine)
                 .createdAt(route.getCreatedAt())
                 .waypoints(waypointDtos)
@@ -128,6 +140,140 @@ public class UserRouteServiceImpl implements UserRouteService {
                 .routeType(routeType != null ? routeType : "WALK")
                 .build();
         return userRouteRepository.save(route).getId();
+    }
+
+    @Override
+    @Transactional
+    public Long createFromPilgrimage(Long pilgrimageRouteId, String authorEmail, String routeType) {
+        User author = findUser(authorEmail);
+        // 구간별 스팟은 PilgrimageRoute 엔티티 자체엔 저장돼 있지 않고 상세 조회 시 매번
+        // 관광 API로 다시 찾아오므로, 그 로직을 그대로 재사용해서 실제 웨이포인트 후보를 얻는다.
+        PilgrimageRouteDetailDto pilgrimage = pilgrimageService.getRouteDetail(pilgrimageRouteId);
+
+        UserRoute route = UserRoute.builder()
+                .author(author)
+                .title(pilgrimage.getName())
+                .description(pilgrimage.getDescription())
+                .routeType(routeType != null ? routeType : "PILGRIMAGE")
+                .build();
+
+        int sequence = 1;
+        for (PilgrimageSegmentDto segment : pilgrimage.getSegments()) {
+            for (BasePlaceDto spot : segment.getSpots()) {
+                route.addWaypoint(UserRouteWaypoint.builder()
+                        .sequenceOrder(sequence++)
+                        .title(spot.getTitle())
+                        .memo(spot.getAddr1())
+                        .lat(spot.getLatitude())
+                        .lng(spot.getLongitude())
+                        .photoUrl(spot.getThumbnailUrl())
+                        .build());
+            }
+        }
+
+        if (route.getWaypoints().isEmpty()) {
+            throw new IllegalStateException("이 순례길에는 게시물로 옮길 스팟이 없습니다.");
+        }
+
+        return userRouteRepository.save(route).getId();
+    }
+
+    @Override
+    public List<Coordinate> getWalkingPath(Long routeId) {
+        UserRoute route = userRouteRepository.findById(routeId)
+                .orElseThrow(() -> new EntityNotFoundException("게시물을 찾을 수 없습니다: " + routeId));
+
+        List<UserRouteWaypoint> waypoints = route.getWaypoints();
+        if (waypoints.size() < 2) {
+            return waypoints.stream()
+                    .map(w -> Coordinate.builder().lat(w.getLat()).lng(w.getLng()).build())
+                    .collect(Collectors.toList());
+        }
+
+        List<UserRouteWaypoint> ordered = nearestNeighborOrder(waypoints);
+
+        if (ordered.size() > MAX_WAYPOINTS_FOR_REAL_ROUTING) {
+            return ordered.stream()
+                    .map(w -> Coordinate.builder().lat(w.getLat()).lng(w.getLng()).build())
+                    .collect(Collectors.toList());
+        }
+
+        List<Coordinate> path = new ArrayList<>();
+        for (int i = 0; i < ordered.size() - 1; i++) {
+            UserRouteWaypoint from = ordered.get(i);
+            UserRouteWaypoint to = ordered.get(i + 1);
+            List<Coordinate> leg = osrmWalkingDirectionsService.getWalkingPath(
+                    from.getLat(), from.getLng(), to.getLat(), to.getLng());
+
+            if (leg.isEmpty()) {
+                // 도보 경로 API가 실패하면 최소한 직선으로라도 이어준다.
+                path.add(Coordinate.builder().lat(from.getLat()).lng(from.getLng()).build());
+                path.add(Coordinate.builder().lat(to.getLat()).lng(to.getLng()).build());
+            } else {
+                path.addAll(leg);
+            }
+        }
+        return path;
+    }
+
+    // 1번(시작) 웨이포인트는 고정하고, 그다음부터는 현재 위치에서 가장 가까운 곳을 계속
+    // 골라나가는 탐욕적(nearest-neighbor) 방식으로 실제로 걸을 법한 순서를 만든다.
+    private List<UserRouteWaypoint> nearestNeighborOrder(List<UserRouteWaypoint> waypoints) {
+        List<UserRouteWaypoint> remaining = new ArrayList<>(waypoints);
+        List<UserRouteWaypoint> ordered = new ArrayList<>();
+
+        UserRouteWaypoint current = remaining.remove(0);
+        ordered.add(current);
+
+        while (!remaining.isEmpty()) {
+            UserRouteWaypoint nearest = null;
+            double bestDistance = Double.MAX_VALUE;
+            for (UserRouteWaypoint candidate : remaining) {
+                double distance = haversineKm(current.getLat(), current.getLng(), candidate.getLat(), candidate.getLng());
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    nearest = candidate;
+                }
+            }
+            ordered.add(nearest);
+            remaining.remove(nearest);
+            current = nearest;
+        }
+        return ordered;
+    }
+
+    private static double haversineKm(double lat1, double lng1, double lat2, double lng2) {
+        double r = 6371;
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return r * c;
+    }
+
+    @Override
+    @Transactional
+    public void deleteRoute(Long routeId, String requesterEmail) {
+        UserRoute route = userRouteRepository.findById(routeId)
+                .orElseThrow(() -> new EntityNotFoundException("게시글을 찾을 수 없습니다: " + routeId));
+        User requester = findUser(requesterEmail);
+
+        if (!route.getAuthor().getId().equals(requester.getId())) {
+            throw new AccessDeniedException("본인이 작성한 게시글만 삭제할 수 있습니다.");
+        }
+
+        // 댓글/좋아요/스크랩은 UserRoute에 cascade로 걸려있지 않으므로 FK 제약을 피하려면 먼저 지운다.
+        // 웨이포인트는 UserRoute의 @OneToMany(cascade=ALL)로 route 삭제 시 함께 삭제된다.
+        // (업로드된 사진 파일 자체는 디스크에서 지우지 않는다 — 기존 댓글/좋아요 삭제 시에도 마찬가지로
+        // 파일 정리는 하지 않는 패턴을 따름)
+        // 대댓글이 부모 댓글을 FK로 참조하므로 대댓글부터 지워야 한다.
+        userRouteCommentRepository.deleteByRouteAndParentIsNotNull(route);
+        userRouteCommentRepository.deleteByRouteAndParentIsNull(route);
+        userRouteLikeRepository.deleteByRoute(route);
+        userRouteScrapRepository.deleteByRoute(route);
+        userRouteRepository.delete(route);
     }
 
     @Override
@@ -192,15 +338,29 @@ public class UserRouteServiceImpl implements UserRouteService {
 
     @Override
     @Transactional
-    public UserRouteCommentDto addComment(Long routeId, String authorEmail, String content) {
+    public UserRouteCommentDto addComment(Long routeId, String authorEmail, String content, Long parentId) {
         UserRoute route = userRouteRepository.findById(routeId)
                 .orElseThrow(() -> new EntityNotFoundException("게시글을 찾을 수 없습니다: " + routeId));
         User author = findUser(authorEmail);
+
+        UserRouteComment parent = null;
+        if (parentId != null) {
+            parent = userRouteCommentRepository.findById(parentId)
+                    .orElseThrow(() -> new EntityNotFoundException("댓글을 찾을 수 없습니다: " + parentId));
+            if (!parent.getRoute().getId().equals(routeId)) {
+                throw new IllegalArgumentException("다른 게시글의 댓글에는 답글을 달 수 없습니다.");
+            }
+            // 대댓글에 대한 답글은 최상위 댓글 기준으로 평탄화한다 (1단계 스레드만 허용).
+            if (parent.getParent() != null) {
+                parent = parent.getParent();
+            }
+        }
 
         UserRouteComment comment = userRouteCommentRepository.save(UserRouteComment.builder()
                 .route(route)
                 .author(author)
                 .content(content)
+                .parent(parent)
                 .build());
 
         return toCommentDto(comment, author);
@@ -215,6 +375,12 @@ public class UserRouteServiceImpl implements UserRouteService {
 
         if (!comment.getAuthor().getId().equals(requester.getId())) {
             throw new AccessDeniedException("본인이 작성한 댓글만 삭제할 수 있습니다.");
+        }
+
+        // 최상위 댓글을 지우면 거기 달린 대댓글도 함께 지운다 (다른 사람이 쓴 답글이어도 함께 삭제됨).
+        if (comment.getParent() == null) {
+            userRouteCommentRepository.findByParentOrderByCreatedAtAsc(comment)
+                    .forEach(userRouteCommentRepository::delete);
         }
         userRouteCommentRepository.delete(comment);
     }
@@ -232,7 +398,8 @@ public class UserRouteServiceImpl implements UserRouteService {
                 .title(route.getTitle())
                 .description(route.getDescription())
                 .routeType(route.getRouteType())
-                .authorName(route.getAuthor().getName())
+                .authorName(route.getAuthor().getDisplayName())
+                .authorProfileImageUrl(route.getAuthor().getProfileImageUrl())
                 .createdAt(route.getCreatedAt())
                 .thumbnailUrl(thumbnailUrl)
                 .waypointCount(route.getWaypoints().size())
@@ -255,14 +422,27 @@ public class UserRouteServiceImpl implements UserRouteService {
                 .build();
     }
 
+    private UserRouteCommentDto toCommentDtoWithReplies(UserRouteComment comment, User currentUser) {
+        List<UserRouteCommentDto> replyDtos = userRouteCommentRepository.findByParentOrderByCreatedAtAsc(comment).stream()
+                .map(reply -> toCommentDto(reply, currentUser))
+                .collect(Collectors.toList());
+
+        return toCommentDtoBuilder(comment, currentUser).replies(replyDtos).build();
+    }
+
     private UserRouteCommentDto toCommentDto(UserRouteComment comment, User currentUser) {
+        return toCommentDtoBuilder(comment, currentUser).build();
+    }
+
+    private UserRouteCommentDto.UserRouteCommentDtoBuilder toCommentDtoBuilder(UserRouteComment comment, User currentUser) {
         return UserRouteCommentDto.builder()
                 .id(comment.getId())
-                .authorName(comment.getAuthor().getName())
+                .authorName(comment.getAuthor().getDisplayName())
+                .authorProfileImageUrl(comment.getAuthor().getProfileImageUrl())
                 .mine(currentUser != null && comment.getAuthor().getId().equals(currentUser.getId()))
                 .content(comment.getContent())
                 .createdAt(comment.getCreatedAt())
-                .build();
+                .parentId(comment.getParent() != null ? comment.getParent().getId() : null);
     }
 
     private User findUser(String email) {
