@@ -13,4 +13,5 @@ public interface UserRouteLikeRepository extends JpaRepository<UserRouteLike, Lo
     long countByRoute(UserRoute route);
     Optional<UserRouteLike> findByUserAndRoute(User user, UserRoute route);
     boolean existsByUserAndRoute(User user, UserRoute route);
+    void deleteByRoute(UserRoute route);
 }

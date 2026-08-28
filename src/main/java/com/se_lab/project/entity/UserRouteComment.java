@@ -28,6 +28,11 @@ public class UserRouteComment {
     @JoinColumn(name = "author_id", nullable = false)
     private User author;
 
+    // null이면 최상위 댓글, 값이 있으면 그 댓글에 대한 대댓글 (1단계만 허용)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_id")
+    private UserRouteComment parent;
+
     @Column(nullable = false, length = 500)
     private String content;
 

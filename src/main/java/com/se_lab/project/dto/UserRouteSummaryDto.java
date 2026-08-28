@@ -17,6 +17,7 @@ public class UserRouteSummaryDto {
     private String description;
     private String routeType;
     private String authorName;
+    private String authorProfileImageUrl;
     private LocalDateTime createdAt;
     private String thumbnailUrl;
     private int waypointCount;

@@ -15,4 +15,5 @@ public interface UserRouteScrapRepository extends JpaRepository<UserRouteScrap, 
     Optional<UserRouteScrap> findByUserAndRoute(User user, UserRoute route);
     boolean existsByUserAndRoute(User user, UserRoute route);
     List<UserRouteScrap> findByUserOrderByScrapedAtDesc(User user);
+    void deleteByRoute(UserRoute route);
 }

@@ -18,6 +18,7 @@ public class UserRouteDetailDto {
     private String description;
     private String routeType;
     private String authorName;
+    private String authorProfileImageUrl;
     private boolean mine;
     private LocalDateTime createdAt;
     private List<UserRouteWaypointDto> waypoints;
