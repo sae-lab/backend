@@ -336,7 +336,7 @@ DB 메타데이터와 실제 파일의 생명주기가 달라질 수 있으므�
 1. 차단 항목을 수정하고 테스트·이미지 검증을 완료한다.
 2. `Dockerfile`, `.dockerignore`, `application.yml`을 포함한 변경을 `integration/render-test`에 커밋·Push한다.
 3. Render에서 `New > Web Service`를 선택하고 Git 저장소를 연결한다.
-4. Branch를 `integration/render-test`, Root Directory를 `backend`로 지정한다.
+4. Branch를 `integration/render-test`, Root Directory를 `.`로 지정한다.
 5. Language/Runtime은 `Docker`로 선택한다.
 6. Root Directory 기준 Dockerfile Path는 `./Dockerfile`, Docker Context는 `.`로 지정한다.
 7. Docker Command는 비워 Dockerfile `ENTRYPOINT`를 사용한다.
