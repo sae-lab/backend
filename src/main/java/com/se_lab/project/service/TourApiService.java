@@ -200,7 +200,7 @@ public class TourApiService {
                 item.path("cat3").asText()
         );
 
-        String imageUrl = item.path("firstimage").asText("");
+        String imageUrl = TourImageUrlNormalizer.normalize(item.path("firstimage").asText(""));
         if (useDefaultImage && imageUrl.isEmpty()) {
             imageUrl = "https://cdn.pixabay.com/photo/2019/08/08/11/33/korea-4392764_1280.jpg";
         }
