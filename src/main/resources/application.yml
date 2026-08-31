@@ -29,6 +29,7 @@ tour-api:
     location-based: "/locationBasedList2"
     area-based: "/areaBasedList2"
     search-keyword: "/searchKeyword2"
+    detail-common: "/detailCommon2"
 
 kakao:
   api-key: "${KAKAO_API_KEY}"
@@ -47,3 +48,5 @@ app:
     enabled: ${APP_SEED_ENABLED:false}
   cors:
     allowed-origin-patterns: "${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:*}"
+  image-proxy:
+    allowed-hosts: "${IMAGE_PROXY_ALLOWED_HOSTS:tong.visitkorea.or.kr}"
