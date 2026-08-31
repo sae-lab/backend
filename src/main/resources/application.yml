@@ -7,6 +7,11 @@ logging:
     com.se_lab.project: ${APP_LOG_LEVEL:INFO}
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: ${MAX_UPLOAD_FILE_SIZE:10MB}
+      max-request-size: ${MAX_UPLOAD_REQUEST_SIZE:12MB}
+
   datasource:
     url: "${DB_URL}"
     username: "${DB_USERNAME}"
