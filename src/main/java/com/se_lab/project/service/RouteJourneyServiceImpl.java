@@ -152,7 +152,7 @@ public class RouteJourneyServiceImpl implements RouteJourneyService {
         for (int i = 1; i < waypoints.size(); i++) {
             UserRouteWaypoint prev = waypoints.get(i - 1);
             UserRouteWaypoint cur = waypoints.get(i);
-            total += haversineKm(prev.getLat(), prev.getLng(), cur.getLat(), cur.getLng());
+            total += GeoUtils.distanceKm(prev.getLat(), prev.getLng(), cur.getLat(), cur.getLng());
         }
         return Math.round(total * 10) / 10.0;
     }
@@ -178,7 +178,7 @@ public class RouteJourneyServiceImpl implements RouteJourneyService {
         LocalDateTime now = LocalDateTime.now();
 
         if (journey.getLastLat() != null && journey.getLastLng() != null && journey.getLastPingAt() != null) {
-            double deltaKm = haversineKm(journey.getLastLat(), journey.getLastLng(), lat, lng);
+            double deltaKm = GeoUtils.distanceKm(journey.getLastLat(), journey.getLastLng(), lat, lng);
             long deltaSeconds = Duration.between(journey.getLastPingAt(), now).getSeconds();
 
             if (deltaKm <= MAX_PING_JUMP_KM) {
@@ -195,7 +195,7 @@ public class RouteJourneyServiceImpl implements RouteJourneyService {
 
         for (RouteJourneyCheckpoint checkpoint : journey.getCheckpoints()) {
             if (checkpoint.isVisited()) continue;
-            double distanceKm = haversineKm(lat, lng, checkpoint.getLat(), checkpoint.getLng());
+            double distanceKm = GeoUtils.distanceKm(lat, lng, checkpoint.getLat(), checkpoint.getLng());
             if (distanceKm <= CHECKPOINT_RADIUS_KM) {
                 checkpoint.setVisited(true);
                 checkpoint.setVisitedAt(now);
@@ -271,19 +271,20 @@ public class RouteJourneyServiceImpl implements RouteJourneyService {
 
         int total = checkpoints.size();
         int visited = (int) checkpoints.stream().filter(RouteJourneyCheckpointDto::isVisited).count();
+        RouteJourneySummaryDto summary = toSummaryDto(journey, visited, total);
 
         return RouteJourneyDetailDto.builder()
-                .id(journey.getId())
-                .sourceType(journey.getSourceType())
-                .sourceId(journey.getSourceId())
-                .title(journey.getTitle())
-                .totalDistanceKm(journey.getTotalDistanceKm())
-                .status(journey.getStatus())
-                .startedAt(journey.getStartedAt())
-                .completedAt(journey.getCompletedAt())
-                .walkedDistanceKm(Math.round(journey.getWalkedDistanceKm() * 100) / 100.0)
-                .elapsedSeconds(journey.getElapsedSeconds())
-                .completionRate(total == 0 ? 0 : (double) visited / total)
+                .id(summary.getId())
+                .sourceType(summary.getSourceType())
+                .sourceId(summary.getSourceId())
+                .title(summary.getTitle())
+                .totalDistanceKm(summary.getTotalDistanceKm())
+                .status(summary.getStatus())
+                .startedAt(summary.getStartedAt())
+                .completedAt(summary.getCompletedAt())
+                .walkedDistanceKm(summary.getWalkedDistanceKm())
+                .elapsedSeconds(summary.getElapsedSeconds())
+                .completionRate(summary.getCompletionRate())
                 .visitedCheckpointCount(visited)
                 .totalCheckpointCount(total)
                 .checkpoints(checkpoints)
@@ -293,7 +294,10 @@ public class RouteJourneyServiceImpl implements RouteJourneyService {
     private RouteJourneySummaryDto toSummaryDto(RouteJourney journey) {
         int total = journey.getCheckpoints().size();
         int visited = (int) journey.getCheckpoints().stream().filter(RouteJourneyCheckpoint::isVisited).count();
+        return toSummaryDto(journey, visited, total);
+    }
 
+    private RouteJourneySummaryDto toSummaryDto(RouteJourney journey, int visited, int total) {
         return RouteJourneySummaryDto.builder()
                 .id(journey.getId())
                 .sourceType(journey.getSourceType())
@@ -309,14 +313,4 @@ public class RouteJourneyServiceImpl implements RouteJourneyService {
                 .build();
     }
 
-    private static double haversineKm(double lat1, double lng1, double lat2, double lng2) {
-        double r = 6371;
-        double dLat = Math.toRadians(lat2 - lat1);
-        double dLng = Math.toRadians(lng2 - lng1);
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return r * c;
-    }
 }

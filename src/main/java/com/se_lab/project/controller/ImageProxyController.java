@@ -2,6 +2,7 @@ package com.se_lab.project.controller;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -28,8 +29,9 @@ import java.util.concurrent.TimeUnit;
 public class ImageProxyController {
 
     // 열어줄 이미지 호스트만 화이트리스트로 제한 — 임의 URL을 다 받아오는 오픈 프록시가
-    // 되지 않도록 한다.
-    private static final List<String> ALLOWED_HOSTS = List.of("tong.visitkorea.or.kr");
+    // 되지 않도록 한다. 환경별로 바뀔 수 있는 값이라 코드가 아니라 설정으로 뺐다.
+    @Value("${app.image-proxy.allowed-hosts:tong.visitkorea.or.kr}")
+    private List<String> allowedHosts;
 
     private final RestTemplate restTemplate;
 
@@ -42,7 +44,7 @@ public class ImageProxyController {
             return ResponseEntity.badRequest().build();
         }
 
-        if (uri.getHost() == null || !ALLOWED_HOSTS.contains(uri.getHost())
+        if (uri.getHost() == null || !allowedHosts.contains(uri.getHost())
                 || !("http".equals(uri.getScheme()) || "https".equals(uri.getScheme()))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }

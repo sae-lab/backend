@@ -3,12 +3,12 @@ package com.se_lab.project.controller;
 import com.se_lab.project.dto.UserRouteCommentDto;
 import com.se_lab.project.dto.UserRouteDetailDto;
 import com.se_lab.project.dto.UserRouteSummaryDto;
+import com.se_lab.project.global.AuthUtil;
 import com.se_lab.project.service.UserRouteService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -168,13 +168,11 @@ public class UserRouteController {
     }
 
     private String currentUserEmail() {
-        return SecurityContextHolder.getContext().getAuthentication().getName();
+        return AuthUtil.currentUserEmail();
     }
 
     private String requireLoggedIn() {
-        String email = currentUserEmail();
-        if (email == null || email.isBlank() || "anonymousUser".equals(email)) return null;
-        return email;
+        return AuthUtil.requireLoggedIn();
     }
 
     private ResponseEntity<?> unauthorized() {

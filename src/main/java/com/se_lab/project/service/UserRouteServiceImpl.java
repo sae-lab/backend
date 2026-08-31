@@ -29,6 +29,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -101,8 +102,17 @@ public class UserRouteServiceImpl implements UserRouteService {
                 .map(this::toWaypointDto)
                 .collect(Collectors.toList());
 
-        List<UserRouteCommentDto> commentDtos = userRouteCommentRepository.findByRouteAndParentIsNullOrderByCreatedAtAsc(route).stream()
-                .map(comment -> toCommentDtoWithReplies(comment, currentUser))
+        // 최상위 댓글마다 대댓글을 따로 쿼리하면 댓글 수만큼 쿼리가 늘어나므로,
+        // 게시글의 댓글 전체를 한 번에 가져와 부모 id로 메모리에서 묶는다.
+        List<UserRouteComment> allComments = userRouteCommentRepository.findByRouteOrderByCreatedAtAsc(route);
+        Map<Long, List<UserRouteComment>> repliesByParentId = allComments.stream()
+                .filter(c -> c.getParent() != null)
+                .collect(Collectors.groupingBy(c -> c.getParent().getId()));
+
+        List<UserRouteCommentDto> commentDtos = allComments.stream()
+                .filter(c -> c.getParent() == null)
+                .map(comment -> toCommentDtoWithReplies(
+                        comment, repliesByParentId.getOrDefault(comment.getId(), List.of()), currentUser))
                 .collect(Collectors.toList());
 
         long likeCount = userRouteLikeRepository.countByRoute(route);
@@ -229,7 +239,7 @@ public class UserRouteServiceImpl implements UserRouteService {
             UserRouteWaypoint nearest = null;
             double bestDistance = Double.MAX_VALUE;
             for (UserRouteWaypoint candidate : remaining) {
-                double distance = haversineKm(current.getLat(), current.getLng(), candidate.getLat(), candidate.getLng());
+                double distance = GeoUtils.distanceKm(current.getLat(), current.getLng(), candidate.getLat(), candidate.getLng());
                 if (distance < bestDistance) {
                     bestDistance = distance;
                     nearest = candidate;
@@ -240,17 +250,6 @@ public class UserRouteServiceImpl implements UserRouteService {
             current = nearest;
         }
         return ordered;
-    }
-
-    private static double haversineKm(double lat1, double lng1, double lat2, double lng2) {
-        double r = 6371;
-        double dLat = Math.toRadians(lat2 - lat1);
-        double dLng = Math.toRadians(lng2 - lng1);
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return r * c;
     }
 
     @Override
@@ -379,8 +378,7 @@ public class UserRouteServiceImpl implements UserRouteService {
 
         // 최상위 댓글을 지우면 거기 달린 대댓글도 함께 지운다 (다른 사람이 쓴 답글이어도 함께 삭제됨).
         if (comment.getParent() == null) {
-            userRouteCommentRepository.findByParentOrderByCreatedAtAsc(comment)
-                    .forEach(userRouteCommentRepository::delete);
+            userRouteCommentRepository.deleteByParent(comment);
         }
         userRouteCommentRepository.delete(comment);
     }
@@ -422,8 +420,8 @@ public class UserRouteServiceImpl implements UserRouteService {
                 .build();
     }
 
-    private UserRouteCommentDto toCommentDtoWithReplies(UserRouteComment comment, User currentUser) {
-        List<UserRouteCommentDto> replyDtos = userRouteCommentRepository.findByParentOrderByCreatedAtAsc(comment).stream()
+    private UserRouteCommentDto toCommentDtoWithReplies(UserRouteComment comment, List<UserRouteComment> replies, User currentUser) {
+        List<UserRouteCommentDto> replyDtos = replies.stream()
                 .map(reply -> toCommentDto(reply, currentUser))
                 .collect(Collectors.toList());
 

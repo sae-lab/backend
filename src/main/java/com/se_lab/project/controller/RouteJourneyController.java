@@ -1,11 +1,11 @@
 package com.se_lab.project.controller;
 
+import com.se_lab.project.global.AuthUtil;
 import com.se_lab.project.service.RouteJourneyService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -19,14 +19,14 @@ public class RouteJourneyController {
 
     @GetMapping("/trackable")
     public ResponseEntity<?> getTrackableRoutes() {
-        String email = requireLoggedIn();
+        String email = AuthUtil.requireLoggedIn();
         if (email == null) return unauthorized();
         return ResponseEntity.ok(routeJourneyService.getTrackableRoutes(email));
     }
 
     @PostMapping
     public ResponseEntity<?> startJourney(@RequestBody Map<String, String> body) {
-        String email = requireLoggedIn();
+        String email = AuthUtil.requireLoggedIn();
         if (email == null) return unauthorized();
 
         String sourceType = body.get("sourceType");
@@ -50,7 +50,7 @@ public class RouteJourneyController {
 
     @GetMapping("/active")
     public ResponseEntity<?> getActiveJourney() {
-        String email = requireLoggedIn();
+        String email = AuthUtil.requireLoggedIn();
         if (email == null) return unauthorized();
 
         var active = routeJourneyService.getActiveJourney(email);
@@ -60,7 +60,7 @@ public class RouteJourneyController {
 
     @PostMapping("/{id}/ping")
     public ResponseEntity<?> ping(@PathVariable Long id, @RequestBody Map<String, Double> body) {
-        String email = requireLoggedIn();
+        String email = AuthUtil.requireLoggedIn();
         if (email == null) return unauthorized();
 
         Double lat = body.get("lat");
@@ -82,7 +82,7 @@ public class RouteJourneyController {
 
     @PostMapping("/{id}/abandon")
     public ResponseEntity<?> abandon(@PathVariable Long id) {
-        String email = requireLoggedIn();
+        String email = AuthUtil.requireLoggedIn();
         if (email == null) return unauthorized();
 
         try {
@@ -98,7 +98,7 @@ public class RouteJourneyController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteJourney(@PathVariable Long id) {
-        String email = requireLoggedIn();
+        String email = AuthUtil.requireLoggedIn();
         if (email == null) return unauthorized();
 
         try {
@@ -113,19 +113,9 @@ public class RouteJourneyController {
 
     @GetMapping("/history")
     public ResponseEntity<?> getHistory() {
-        String email = requireLoggedIn();
+        String email = AuthUtil.requireLoggedIn();
         if (email == null) return unauthorized();
         return ResponseEntity.ok(routeJourneyService.getHistory(email));
-    }
-
-    private String currentUserEmail() {
-        return SecurityContextHolder.getContext().getAuthentication().getName();
-    }
-
-    private String requireLoggedIn() {
-        String email = currentUserEmail();
-        if (email == null || email.isBlank() || "anonymousUser".equals(email)) return null;
-        return email;
     }
 
     private ResponseEntity<?> unauthorized() {

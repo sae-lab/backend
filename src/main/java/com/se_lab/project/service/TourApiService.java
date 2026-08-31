@@ -111,6 +111,8 @@ public class TourApiService {
     // 주의: 이 API 버전(KorService2)의 detailCommon2는 defaultYN/firstImageYN 같은
     // 부가 플래그나 contentTypeId를 넘기면 INVALID_REQUEST_PARAMETER_ERROR를 낸다.
     // contentId만 넘겨도 overview/mapx/mapy/firstimage가 기본으로 포함되어 온다.
+    // 실패(null)는 캐싱하지 않는다 — 일시적인 네트워크 오류까지 영구 캐싱되면 안 되므로.
+    @Cacheable(value = "placeDetail", key = "#contentId", unless = "#result == null")
     public CourseDetailDto getPlaceDetail(String contentId) {
         String fullUrl = UriComponentsBuilder.fromHttpUrl(baseUrl + detailCommonEndpoint)
                 .queryParam("serviceKey", serviceKey)

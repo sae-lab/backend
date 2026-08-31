@@ -2,12 +2,12 @@ package com.se_lab.project.controller;
 
 import com.se_lab.project.dto.UserProfileDto;
 import com.se_lab.project.entity.User;
+import com.se_lab.project.global.AuthUtil;
 import com.se_lab.project.repository.UserRepository;
 import com.se_lab.project.service.FileStorageService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -23,12 +23,10 @@ public class UserController {
 
     @GetMapping("/me")
     public ResponseEntity<?> getMyProfile() {
-        String email = currentUserEmail();
+        String email = AuthUtil.requireLoggedIn();
         if (email == null) return unauthorized();
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new EntityNotFoundException("유저를 찾을 수 없습니다: " + email));
-        return ResponseEntity.ok(toDto(user));
+        return ResponseEntity.ok(toDto(findUser(email)));
     }
 
     // 닉네임/프로필 사진을 부분적으로 수정한다. 둘 다 선택값 — 보낸 것만 바뀐다.
@@ -36,11 +34,10 @@ public class UserController {
     public ResponseEntity<?> updateMyProfile(
             @RequestParam(required = false) String nickname,
             @RequestParam(required = false) MultipartFile photo) {
-        String email = currentUserEmail();
+        String email = AuthUtil.requireLoggedIn();
         if (email == null) return unauthorized();
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new EntityNotFoundException("유저를 찾을 수 없습니다: " + email));
+        User user = findUser(email);
 
         if (nickname != null) {
             String trimmed = nickname.trim();
@@ -54,6 +51,11 @@ public class UserController {
         return ResponseEntity.ok(toDto(user));
     }
 
+    private User findUser(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new EntityNotFoundException("유저를 찾을 수 없습니다: " + email));
+    }
+
     private UserProfileDto toDto(User user) {
         return UserProfileDto.builder()
                 .email(user.getEmail())
@@ -62,12 +64,6 @@ public class UserController {
                 .displayName(user.getDisplayName())
                 .profileImageUrl(user.getProfileImageUrl())
                 .build();
-    }
-
-    private String currentUserEmail() {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        if (email == null || email.isBlank() || "anonymousUser".equals(email)) return null;
-        return email;
     }
 
     private ResponseEntity<?> unauthorized() {
