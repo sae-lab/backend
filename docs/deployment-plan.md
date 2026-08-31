@@ -66,7 +66,7 @@ Flutter 모바일/웹
 | 인증 | 애플리케이션 자체 JWT, JJWT 0.12.6 | `build.gradle`, `JwtUtil.java` |
 | 설정 로딩 | Spring 환경변수 + 선택적 `.env` 로딩. `.env` 부재는 무시 | `SightseeingProjectApplication.java` |
 | 활성 프로필 | 별도 프로필 강제 없음 | 전체 설정 파일 검색 |
-| 업로드 | 로컬 파일 시스템에 저장하고 `/uploads/user-routes/**`로 노출 | `FileStorageService.java`, `WebConfig.java` |
+| 업로드 | `STORAGE_TYPE=local`이면 로컬 파일 시스템, `r2`이면 Cloudflare R2에 저장 | `StorageService.java`, `LocalStorageService.java`, `R2StorageService.java` |
 | 시작 시 작업 | 기본 기동에서는 seeder가 생성되지 않는다. `APP_SEED_ENABLED=true`인 명시적 초기화 기동에서만 두루누비 동기화와 순례길 시드 저장을 시도한다. | `PilgrimageDataSeeder.java`, `application.yml` |
 
 ## 4. 기존 계획과 실제 코드의 차이
@@ -80,7 +80,7 @@ Flutter 모바일/웹
 | `./gradlew clean test` 통과를 완료 조건으로 사용 | 테스트 의존성과 JUnit Platform 설정은 있으나 `src/test`에 테스트 파일이 없다. 현재는 0개 테스트로 성공할 수 있음 | 완료 조건 보완 |
 | Docker 이미지 빌드 시 테스트도 검증 | `Dockerfile`은 `clean bootJar`만 실행하므로 테스트를 실행하지 않음 | 별도 테스트 게이트 필요 |
 | 운영 CORS는 환경변수로 제한 | 중앙 CORS 설정만 사용하도록 `AuthController`의 `@CrossOrigin(origins="*")`를 제거했다 | 코드 반영 완료, 런타임 CORS 검증 필요 |
-| 초기 업로드는 `/tmp` | Docker가 `FILE_UPLOAD_DIR=/tmp/uploads/user-routes`를 기본 설정 | 유지. 단, 재시작·재배포·무료 인스턴스 유휴 종료 시 손실 |
+| 로컬 저장 모드의 업로드는 `/tmp` | Docker가 `FILE_UPLOAD_DIR=/tmp/uploads`를 기본 설정 | 로컬 검증용으로 유지. Render에서는 `STORAGE_TYPE=r2` 사용 |
 | 상태 확인은 공개 GET API 사용 | 전용 헬스 엔드포인트와 Actuator 의존성이 없음 | TCP 확인과 기능 확인을 분리하고 헬스 구현 결정 필요 |
 | DB 스키마 준비 절차 | Flyway/Liquibase가 없고 Hibernate 기본값이 `ddl-auto=update` | 마이그레이션 계획 추가 |
 
@@ -182,7 +182,16 @@ java -jar build/libs/*.jar
 | `WALKING_COURSE_SERVICE_KEY` | 조건부 | 예 | `API_TOKEN` | 두루누비 키. 별도 값이 없으면 `API_TOKEN` 사용 |
 | `WALKING_COURSE_LIST_ENDPOINT` | 아니요 | 아니요 | `/courseList` | 두루누비 코스 목록 |
 | `WALKING_COURSE_ROUTE_ENDPOINT` | 아니요 | 아니요 | `/routeList` | 설정에는 있으나 현재 Java 코드에서 미사용 |
-| `FILE_UPLOAD_DIR` | 아니요 | 아니요 | 앱 `./.local/uploads/user-routes`; Docker `/tmp/uploads/user-routes` | 업로드 디렉터리 |
+| `FILE_UPLOAD_DIR` | 아니요 | 아니요 | 앱 `./.local/uploads`; Docker `/tmp/uploads` | 로컬 저장 모드의 공통 업로드 루트 |
+| `STORAGE_TYPE` | 아니요 | 아니요 | `local` | 저장 방식. 로컬·Podman은 `local`, Render 개발 배포는 `r2` |
+| `R2_ENDPOINT` | R2 사용 시 예 | 예 | 없음 | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` 형식의 S3 API 주소 |
+| `R2_BUCKET` | R2 사용 시 예 | 예 | 없음 | 개발 환경에서 사용할 R2 버킷 이름 |
+| `R2_ACCESS_KEY_ID` | R2 사용 시 예 | 예 | 없음 | R2 S3 API 접근 키 ID |
+| `R2_SECRET_ACCESS_KEY` | R2 사용 시 예 | 예 | 없음 | R2 S3 API 비밀 접근 키 |
+| `R2_PUBLIC_BASE_URL` | R2 사용 시 예 | 아니요 | 없음 | 공개 개발 URL 또는 연결한 이미지 도메인 |
+| `R2_OBJECT_PREFIX` | 아니요 | 아니요 | `dev` | 버킷 안에서 환경별 객체를 구분하는 접두 경로 |
+| `IMAGE_MAX_FILE_SIZE` | 아니요 | 아니요 | `10MB` | 이미지 파일 하나의 최대 크기 |
+| `IMAGE_MAX_REQUEST_SIZE` | 아니요 | 아니요 | `12MB` | multipart 요청 전체의 최대 크기 |
 | `CORS_ALLOWED_ORIGIN_PATTERNS` | Flutter Web 사용 시 예 | 아니요 | `http://localhost:*` | 쉼표 구분 브라우저 허용 Origin pattern |
 | `APP_SEED_ENABLED` | 아니요 | 아니요 | `false` | `true`일 때만 두루누비 동기화와 순례길 초기 데이터를 실행. 일반 Web Service에서는 생략하거나 `false` 유지 |
 
@@ -267,20 +276,19 @@ jdbc:postgresql://<session-pooler-host>:5432/<database>?sslmode=require
 
 ### 확인된 사실
 
-- `FileStorageService`가 `FILE_UPLOAD_DIR`을 만들고 UUID 기반 파일명으로 로컬 디스크에 복사한다.
-- DB에는 `/uploads/user-routes/<generated-name>` 형태 URL이 저장된다.
-- `WebConfig`가 로컬 디렉터리를 `/uploads/user-routes/**`로 공개한다.
-- Docker 기본 경로는 `/tmp/uploads/user-routes`다.
-- 파일 크기, MIME type, 확장자 allowlist, 악성 파일 검사는 현재 코드에 없다.
+- `StorageService` 구현은 `STORAGE_TYPE`에 따라 로컬과 R2 중 하나만 활성화된다.
+- 로컬 모드는 `FILE_UPLOAD_DIR` 아래에 UUID 기반 파일명으로 저장하고 `/uploads/**`로 공개한다.
+- R2 모드는 S3 호환 API로 업로드하고 `R2_PUBLIC_BASE_URL` 기반의 절대 URL을 DB에 저장한다.
+- JPEG, PNG, WebP 파일 시그니처를 확인하며 기본 최대 크기는 10MB다.
+- Docker 로컬 저장 기본 경로는 `/tmp/uploads`다.
 
 ### Render 적용
 
 - Render Free Web Service 파일 시스템은 임시이며 15분간 인바운드 트래픽이 없으면 종료될 수 있다. 재시작, 유휴 종료, 재배포 시 업로드가 사라진다.
 - 무료 플랜에는 persistent disk를 붙일 수 없다.
-- 초기 검증에서는 파일 손실을 허용하고 업로드·조회 형식만 확인할 수 있다.
-- 영속성이 필요하면 다음 중 하나를 승인한다.
-  1. Supabase Storage로 전환하고 Storage RLS·공개 URL·삭제 정책을 설계한다. 운영 권장안이다.
-  2. Render 유료 서비스와 단일 인스턴스 persistent disk를 사용하고 `FILE_UPLOAD_DIR`을 mount path에 맞춘다.
+- 로컬·Podman 검증은 `STORAGE_TYPE=local`, Render 개발 배포는 `STORAGE_TYPE=r2`로 실행한다.
+- R2 버킷은 개발 환경에서 하나를 공유하되 `R2_OBJECT_PREFIX=dev`처럼 접두 경로로 분리한다.
+- 운영 시작 시에는 운영용 버킷 또는 운영 전용 접두 경로와 별도 자격 증명을 사용한다.
 
 DB 메타데이터와 실제 파일의 생명주기가 달라질 수 있으므로 업로드 실패·DB 저장 실패·파일 삭제의 보상 정책도 결정한다.
 

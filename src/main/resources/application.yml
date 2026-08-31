@@ -7,6 +7,11 @@ logging:
     com.se_lab.project: ${APP_LOG_LEVEL:INFO}
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: ${IMAGE_MAX_FILE_SIZE:10MB}
+      max-request-size: ${IMAGE_MAX_REQUEST_SIZE:12MB}
+
   datasource:
     url: "${DB_URL}"
     username: "${DB_USERNAME}"
@@ -41,7 +46,17 @@ walking-course:
     course-list: "/courseList"
 
 file:
-  upload-dir: "${FILE_UPLOAD_DIR:./.local/uploads/user-routes}"
+  upload-dir: "${FILE_UPLOAD_DIR:./.local/uploads}"
+
+storage:
+  type: "${STORAGE_TYPE:local}"
+  r2:
+    endpoint: "${R2_ENDPOINT:}"
+    bucket: "${R2_BUCKET:}"
+    access-key-id: "${R2_ACCESS_KEY_ID:}"
+    secret-access-key: "${R2_SECRET_ACCESS_KEY:}"
+    public-base-url: "${R2_PUBLIC_BASE_URL:}"
+    object-prefix: "${R2_OBJECT_PREFIX:dev}"
 
 app:
   seed:

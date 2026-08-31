@@ -29,6 +29,9 @@ dependencies {
 
     implementation 'com.github.ben-manes.caffeine:caffeine'
 
+    implementation platform('software.amazon.awssdk:bom:2.49.6')
+    implementation 'software.amazon.awssdk:s3'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 
     compileOnly 'org.projectlombok:lombok'

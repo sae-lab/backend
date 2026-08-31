@@ -4,7 +4,7 @@ import com.se_lab.project.dto.UserProfileDto;
 import com.se_lab.project.entity.User;
 import com.se_lab.project.global.AuthUtil;
 import com.se_lab.project.repository.UserRepository;
-import com.se_lab.project.service.FileStorageService;
+import com.se_lab.project.service.StorageService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,7 +19,7 @@ import java.util.Map;
 public class UserController {
 
     private final UserRepository userRepository;
-    private final FileStorageService fileStorageService;
+    private final StorageService storageService;
 
     @GetMapping("/me")
     public ResponseEntity<?> getMyProfile() {
@@ -44,7 +44,7 @@ public class UserController {
             user.setNickname(trimmed.isEmpty() ? null : trimmed);
         }
         if (photo != null && !photo.isEmpty()) {
-            user.setProfileImageUrl(fileStorageService.store(photo, "profiles"));
+            user.setProfileImageUrl(storageService.store(photo, "profiles"));
         }
         userRepository.save(user);
 
