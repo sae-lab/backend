@@ -1,6 +1,7 @@
 package com.se_lab.project.global;
 
 import lombok.RequiredArgsConstructor; // 1. 필수!
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -24,6 +25,9 @@ public class SecurityConfig {
 
     private final JwtUtil jwtUtil;
 
+    @Value("${app.cors.allowed-origin-patterns:http://localhost:*}")
+    private List<String> allowedOriginPatterns;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -33,7 +37,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
-                        .requestMatchers("/test/**").permitAll()
+                        .requestMatchers("/api/v1/admin/**").denyAll()
                         .requestMatchers("/api/v1/places/**").permitAll()
                         .requestMatchers("/api/v1/home").permitAll()
                         .requestMatchers("/error").permitAll()
@@ -59,7 +63,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("http://localhost:*"));
+        configuration.setAllowedOriginPatterns(allowedOriginPatterns);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
@@ -69,4 +73,3 @@ public class SecurityConfig {
         return source;
     }
 }
-
