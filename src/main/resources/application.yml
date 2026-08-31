@@ -18,6 +18,11 @@ spring:
       ddl-auto: ${JPA_DDL_AUTO:update}
     show-sql: ${JPA_SHOW_SQL:false}
 
+  servlet:
+    multipart:
+      max-file-size: ${UPLOAD_MAX_FILE_SIZE:10MB}
+      max-request-size: ${UPLOAD_MAX_REQUEST_SIZE:10MB}
+
 jwt:
   secret: "${JWT_SECRET}"
   expiration_time: ${JWT_EXPIRATION_TIME:86400000}

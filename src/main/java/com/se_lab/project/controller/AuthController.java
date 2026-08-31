@@ -32,13 +32,21 @@ public class AuthController {
         String rawPassword = signupData.get("password");
         String name = signupData.get("name");
 
+        if (email == null || email.isBlank() || rawPassword == null || rawPassword.isBlank()
+                || name == null || name.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "이메일, 비밀번호, 이름을 모두 입력해주세요."));
+        }
+        if (userRepository.existsByEmail(email)) {
+            return ResponseEntity.status(409).body(Map.of("message", "이미 가입된 이메일입니다."));
+        }
+
         // ✨ 비밀번호 암호화 (1234 -> $2a$10$ 복잡한 문자열)
         String encodedPassword = passwordEncoder.encode(rawPassword);
 
         User newUser = new User(email, encodedPassword, name);
         userRepository.save(newUser);
 
-        return ResponseEntity.ok(name + "님 회원가입이 완료되었습니다!");
+        return ResponseEntity.ok(Map.of("message", name + "님 회원가입이 완료되었습니다!"));
     }
 
     // 🚀 2. 진짜 로그인 API
@@ -63,7 +71,7 @@ public class AuthController {
 
             return ResponseEntity.ok(response);
         } else {
-            return ResponseEntity.status(401).body("이메일 또는 비밀번호가 틀렸습니다.");
+            return ResponseEntity.status(401).body(Map.of("message", "이메일 또는 비밀번호가 틀렸습니다."));
         }
     }
 }
