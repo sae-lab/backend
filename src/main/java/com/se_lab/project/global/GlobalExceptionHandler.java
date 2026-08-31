@@ -17,8 +17,8 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
-    public ResponseEntity<?> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException e) {
-        log.warn("업로드 용량 초과: {}", e.getMessage());
+    public ResponseEntity<Map<String, String>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException exception) {
+        log.warn("업로드 용량 초과: {}", exception.getMessage());
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
                 .body(Map.of("message", "사진 용량이 너무 큽니다. 10MB 이하로 올려주세요."));
     }
