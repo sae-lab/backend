@@ -9,8 +9,8 @@ logging:
 spring:
   servlet:
     multipart:
-      max-file-size: ${IMAGE_MAX_FILE_SIZE:10MB}
-      max-request-size: ${IMAGE_MAX_REQUEST_SIZE:12MB}
+      max-file-size: ${MAX_UPLOAD_FILE_SIZE:${IMAGE_MAX_FILE_SIZE:10MB}}
+      max-request-size: ${MAX_UPLOAD_REQUEST_SIZE:${IMAGE_MAX_REQUEST_SIZE:12MB}}
 
   datasource:
     url: "${DB_URL}"

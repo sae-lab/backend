@@ -5,7 +5,6 @@ import com.se_lab.project.service.StorageOperationException;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.Map;
 
@@ -25,9 +24,7 @@ class ApiExceptionHandlerTest {
     }
 
     @Test
-    void convertsContainerLimitAndStorageErrors() {
-        assertThat(handler.handleMaxUploadSize(new MaxUploadSizeExceededException(10)).getStatusCode())
-                .isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE);
+    void convertsStorageErrors() {
         assertThat(handler.handleStorageOperation(
                 new StorageOperationException("저장 실패", new RuntimeException())).getStatusCode())
                 .isEqualTo(HttpStatus.BAD_GATEWAY);

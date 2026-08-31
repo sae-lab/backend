@@ -190,8 +190,8 @@ java -jar build/libs/*.jar
 | `R2_SECRET_ACCESS_KEY` | R2 사용 시 예 | 예 | 없음 | R2 S3 API 비밀 접근 키 |
 | `R2_PUBLIC_BASE_URL` | R2 사용 시 예 | 아니요 | 없음 | 공개 개발 URL 또는 연결한 이미지 도메인 |
 | `R2_OBJECT_PREFIX` | 아니요 | 아니요 | `dev` | 버킷 안에서 환경별 객체를 구분하는 접두 경로 |
-| `IMAGE_MAX_FILE_SIZE` | 아니요 | 아니요 | `10MB` | 이미지 파일 하나의 최대 크기 |
-| `IMAGE_MAX_REQUEST_SIZE` | 아니요 | 아니요 | `12MB` | multipart 요청 전체의 최대 크기 |
+| `MAX_UPLOAD_FILE_SIZE` | 아니요 | 아니요 | `10MB` | 이미지 파일 하나의 최대 크기 |
+| `MAX_UPLOAD_REQUEST_SIZE` | 아니요 | 아니요 | `12MB` | multipart 요청 전체의 최대 크기 |
 | `CORS_ALLOWED_ORIGIN_PATTERNS` | Flutter Web 사용 시 예 | 아니요 | `http://localhost:*` | 쉼표 구분 브라우저 허용 Origin pattern |
 | `APP_SEED_ENABLED` | 아니요 | 아니요 | `false` | `true`일 때만 두루누비 동기화와 순례길 초기 데이터를 실행. 일반 Web Service에서는 생략하거나 `false` 유지 |
 
