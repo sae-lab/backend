@@ -42,6 +42,7 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/pilgrimages/**").permitAll()
                         .requestMatchers("/api/v1/trails/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
+                        .requestMatchers("/api/v1/images/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/user-routes/**").permitAll()
                         .anyRequest().authenticated()
                 )
