@@ -14,7 +14,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 
+import jakarta.annotation.PostConstruct;
+
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -31,9 +34,27 @@ public class ImageProxyController {
     // 열어줄 이미지 호스트만 화이트리스트로 제한 — 임의 URL을 다 받아오는 오픈 프록시가
     // 되지 않도록 한다. 환경별로 바뀔 수 있는 값이라 코드가 아니라 설정으로 뺐다.
     @Value("${app.image-proxy.allowed-hosts:tong.visitkorea.or.kr}")
+    private List<String> configuredHosts;
+
+    // R2에 올라간 프로필/게시물 사진도 같은 이유로 프록시를 거쳐야 하는데, R2 공개
+    // 도메인은 버킷마다 다르므로 하드코딩하지 않고 스토리지 설정에서 그대로 가져온다.
+    @Value("${storage.r2.public-base-url:}")
+    private String r2PublicBaseUrl;
+
     private List<String> allowedHosts;
 
     private final RestTemplate restTemplate;
+
+    @PostConstruct
+    void init() {
+        allowedHosts = new ArrayList<>(configuredHosts);
+        if (!r2PublicBaseUrl.isBlank()) {
+            String r2Host = URI.create(r2PublicBaseUrl).getHost();
+            if (r2Host != null) {
+                allowedHosts.add(r2Host);
+            }
+        }
+    }
 
     @GetMapping("/proxy")
     public ResponseEntity<byte[]> proxy(@RequestParam String url) {
