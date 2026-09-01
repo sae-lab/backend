@@ -18,7 +18,7 @@ RUN groupadd --system spring \
 
 COPY --from=build --chown=spring:spring /workspace/build/libs/app.jar /app/app.jar
 
-ENV FILE_UPLOAD_DIR=/tmp/uploads/user-routes
+ENV FILE_UPLOAD_DIR=/tmp/uploads
 
 USER spring
 

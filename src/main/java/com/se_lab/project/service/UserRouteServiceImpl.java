@@ -42,7 +42,7 @@ public class UserRouteServiceImpl implements UserRouteService {
     private final UserRouteScrapRepository userRouteScrapRepository;
     private final UserRouteCommentRepository userRouteCommentRepository;
     private final UserRepository userRepository;
-    private final FileStorageService fileStorageService;
+    private final StorageService storageService;
     private final PilgrimageService pilgrimageService;
     private final OsrmWalkingDirectionsService osrmWalkingDirectionsService;
 
@@ -287,7 +287,7 @@ public class UserRouteServiceImpl implements UserRouteService {
             throw new AccessDeniedException("본인이 작성한 게시글에만 웨이포인트를 추가할 수 있습니다.");
         }
 
-        String photoUrl = fileStorageService.store(photo);
+        String photoUrl = storageService.store(photo);
 
         route.addWaypoint(UserRouteWaypoint.builder()
                 .sequenceOrder(route.getWaypoints().size() + 1)
