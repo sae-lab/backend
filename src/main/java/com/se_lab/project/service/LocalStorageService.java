@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.UUID;
 
 @Slf4j
@@ -41,7 +42,7 @@ public class LocalStorageService implements StorageService {
 
             String filename = UUID.randomUUID() + image.extension();
             Path target = uploadPath.resolve(filename).normalize();
-            Files.copy(file.getInputStream(), target);
+            Files.write(target, image.content(), StandardOpenOption.CREATE_NEW);
 
             return "/uploads/" + safeSubDir + "/" + filename;
         } catch (IOException e) {

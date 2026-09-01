@@ -11,8 +11,6 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.UUID;
 
 @Slf4j
@@ -50,14 +48,14 @@ public class R2StorageService implements StorageService {
                 .bucket(bucket)
                 .key(objectKey)
                 .contentType(image.contentType())
-                .contentLength(file.getSize())
+                .contentLength((long) image.content().length)
                 .cacheControl("public, max-age=31536000, immutable")
                 .build();
 
-        try (InputStream input = file.getInputStream()) {
-            s3Client.putObject(request, RequestBody.fromInputStream(input, file.getSize()));
+        try {
+            s3Client.putObject(request, RequestBody.fromBytes(image.content()));
             return publicBaseUrl + "/" + objectKey;
-        } catch (IOException | SdkException e) {
+        } catch (SdkException e) {
             log.error("R2 파일 저장 실패: {}", e.getMessage());
             throw new StorageOperationException("이미지 저장소에 파일을 저장하지 못했습니다.", e);
         }

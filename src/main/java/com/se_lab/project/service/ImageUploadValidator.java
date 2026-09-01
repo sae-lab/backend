@@ -7,7 +7,6 @@ import org.springframework.util.unit.DataSize;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 @Component
 public class ImageUploadValidator {
@@ -31,21 +30,26 @@ public class ImageUploadValidator {
                     "이미지는 최대 " + maxFileSize.toMegabytes() + "MB까지 업로드할 수 있습니다.");
         }
 
-        byte[] signature;
-        try (InputStream input = file.getInputStream()) {
-            signature = input.readNBytes(SIGNATURE_LENGTH);
+        byte[] content;
+        try {
+            // 실제 multipart 스트림은 한 번만 읽을 수 있으므로, 검증과 저장에 같은 바이트를 사용한다.
+            content = file.getBytes();
         } catch (IOException e) {
             throw new ImageUploadException(HttpStatus.BAD_REQUEST, "이미지 파일을 읽을 수 없습니다.");
         }
 
+        byte[] signature = content.length > SIGNATURE_LENGTH
+                ? java.util.Arrays.copyOf(content, SIGNATURE_LENGTH)
+                : content;
+
         if (isJpeg(signature)) {
-            return new ValidatedImage("image/jpeg", ".jpg");
+            return new ValidatedImage("image/jpeg", ".jpg", content);
         }
         if (isPng(signature)) {
-            return new ValidatedImage("image/png", ".png");
+            return new ValidatedImage("image/png", ".png", content);
         }
         if (isWebp(signature)) {
-            return new ValidatedImage("image/webp", ".webp");
+            return new ValidatedImage("image/webp", ".webp", content);
         }
 
         throw new ImageUploadException(
@@ -79,6 +83,6 @@ public class ImageUploadValidator {
         return value & 0xFF;
     }
 
-    public record ValidatedImage(String contentType, String extension) {
+    public record ValidatedImage(String contentType, String extension, byte[] content) {
     }
 }
