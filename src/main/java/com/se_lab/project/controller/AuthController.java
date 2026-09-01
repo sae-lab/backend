@@ -66,7 +66,10 @@ public class AuthController {
 
             Map<String, String> response = new HashMap<>();
             response.put("token", token);
-            response.put("name", user.getName());
+            // 앱은 이 값을 저장해두고 프로필을 불러오기 전까지 화면에 그대로 쓴다.
+            // 실명(getName)을 내려주면 프로필 로딩 전까지 실명이 노출됐다가 익명 닉네임으로
+            // 바뀌는 깜빡임이 생기므로, 처음부터 공개용 표시 이름만 내려준다.
+            response.put("name", user.getDisplayName());
             response.put("message", "로그인 성공");
 
             return ResponseEntity.ok(response);
