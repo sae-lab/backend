@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
@@ -27,6 +28,9 @@ public class R2StorageConfig {
         requireSetting(secretAccessKey, "R2_SECRET_ACCESS_KEY");
 
         return S3Client.builder()
+                // Spring Boot가 관리하는 Apache HttpClient 버전과 충돌하지 않도록
+                // AWS SDK의 URLConnection 기반 동기 HTTP 클라이언트를 명시한다.
+                .httpClientBuilder(UrlConnectionHttpClient.builder())
                 .endpointOverride(URI.create(endpoint))
                 .region(Region.of("auto"))
                 .credentialsProvider(StaticCredentialsProvider.create(
