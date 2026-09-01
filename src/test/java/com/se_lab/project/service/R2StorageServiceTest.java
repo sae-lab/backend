@@ -10,6 +10,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -39,5 +40,22 @@ class R2StorageServiceTest {
         assertThat(request.getValue().key()).startsWith("local/sehwan/user-routes/").endsWith(".png");
         assertThat(request.getValue().contentType()).isEqualTo("image/png");
         assertThat(url).isEqualTo("https://images.example.com/" + request.getValue().key());
+    }
+
+    @Test
+    void uploadsImageWhenRequestStreamCanOnlyBeReadOnce() {
+        S3Client s3Client = mock(S3Client.class);
+        when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+                .thenReturn(PutObjectResponse.builder().build());
+        R2StorageService storage = new R2StorageService(
+                s3Client,
+                new ImageUploadValidator(DataSize.ofMegabytes(10)),
+                "kangwonroad-dev",
+                "https://images.example.com",
+                "dev");
+        byte[] png = {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
+
+        assertThatCode(() -> storage.store(new SingleReadMultipartFile(png), "user-routes"))
+                .doesNotThrowAnyException();
     }
 }

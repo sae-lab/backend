@@ -75,6 +75,11 @@ application-*.local.yml
 .env.*
 !.env.example
 
+# IntelliJ HTTP Client의 개인 테스트 계정·비밀번호와 로컬 테스트 이미지
+http-client.private.env.json
+http-client.private/
+http-client_private/
+
 
 # ==============================
 # Project Personal Files

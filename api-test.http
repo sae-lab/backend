@@ -1,16 +1,81 @@
+### 사용 전 준비
+# 1. IntelliJ에서 Environment를 "local"로 선택한다.
+# 2. http-client.private.env.example.json을 http-client.private.env.json으로 복사한 뒤,
+#    email/password를 실제 테스트 계정 값으로 바꾼다.
+# 3. http-client.private/waypoint-test.png에 10MB 이하 JPEG, PNG 또는 WebP 파일을 둔다.
+# 4. 아래 요청을 위에서 아래 순서대로 실행한다.
+#
+# baseUrl은 추적되는 http-client.env.json에, 비밀값은 Git에서 제외되는 개인 환경 파일에 둔다.
+
+### 로그인하고 이번 실행에 사용할 JWT 저장
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+> {% client.global.set("authToken", response.body.token); %}
+
+### 웨이포인트를 추가할 테스트 게시글 생성
+POST {{baseUrl}}/api/v1/user-routes
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "title": "HTTP 이미지 업로드 검증",
+  "description": "로컬 multipart 업로드 회귀 테스트용 게시글입니다.",
+  "routeType": "WALK"
+}
+
+> {% client.global.set("testRouteId", response.body.id); %}
+
+### 한 번만 읽을 수 있는 multipart 요청과 동일한 방식으로 웨이포인트 사진 추가
+POST {{baseUrl}}/api/v1/user-routes/{{testRouteId}}/waypoints
+Authorization: Bearer {{authToken}}
+Content-Type: multipart/form-data; boundary=WaypointBoundary
+
+--WaypointBoundary
+Content-Disposition: form-data; name="title"
+
+로컬 업로드 검증 지점
+--WaypointBoundary
+Content-Disposition: form-data; name="memo"
+
+실제 multipart 요청에서 이미지가 저장되는지 확인합니다.
+--WaypointBoundary
+Content-Disposition: form-data; name="lat"
+
+37.5665
+--WaypointBoundary
+Content-Disposition: form-data; name="lng"
+
+126.9780
+--WaypointBoundary
+Content-Disposition: form-data; name="photo"; filename="waypoint-test.png"
+Content-Type: image/png
+
+< ./http-client.private/waypoint-test.png
+--WaypointBoundary--
+
+### 생성한 테스트 게시글 정리 (사진 파일은 로컬 저장소에 남는다)
+DELETE {{baseUrl}}/api/v1/user-routes/{{testRouteId}}
+Authorization: Bearer {{authToken}}
+
 ### Routes 목록
-GET http://localhost:8080/api/v1/routes
+GET {{baseUrl}}/api/v1/routes
 
 ### Routes 상세
 @routeId = 1
 
-GET http://localhost:8080/api/v1/routes/{{routeId}}/detail
+GET {{baseUrl}}/api/v1/routes/{{routeId}}/detail
 
 ### 최적 순례길
-GET http://localhost:8080/api/v1/routes/optimal?longitude=127.0&latitude=37.5&minutes=180
+GET {{baseUrl}}/api/v1/routes/optimal?longitude=127.0&latitude=37.5&minutes=180
 
 ### 산책/순례길
-GET http://localhost:8080/api/v1/trails
+GET {{baseUrl}}/api/v1/trails
 
 ### 주변 관광지
-GET http://localhost:8080/api/v1/places/nearby?mapX=127.0&mapY=37.5
+GET {{baseUrl}}/api/v1/places/nearby?mapX=127.0&mapY=37.5
