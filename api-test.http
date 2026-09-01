@@ -1,10 +1,11 @@
 ### 사용 전 준비
 # 1. IntelliJ에서 Environment를 "local"로 선택한다.
-# 2. http-client.private.env.json의 email/password를 실제 테스트 계정 값으로 바꾼다.
+# 2. http-client.private.env.example.json을 http-client.private.env.json으로 복사한 뒤,
+#    email/password를 실제 테스트 계정 값으로 바꾼다.
 # 3. http-client.private/waypoint-test.png에 10MB 이하 JPEG, PNG 또는 WebP 파일을 둔다.
 # 4. 아래 요청을 위에서 아래 순서대로 실행한다.
 #
-# 이 파일에는 비밀값을 넣지 않는다. 개인 환경 파일과 테스트 이미지는 .gitignore로 제외된다.
+# baseUrl은 추적되는 http-client.env.json에, 비밀값은 Git에서 제외되는 개인 환경 파일에 둔다.
 
 ### 로그인하고 이번 실행에 사용할 JWT 저장
 POST {{baseUrl}}/api/v1/auth/login
@@ -55,7 +56,7 @@ Content-Disposition: form-data; name="lng"
 Content-Disposition: form-data; name="photo"; filename="waypoint-test.png"
 Content-Type: image/png
 
-< ./http-client_private/Linux_mascot_tux.png
+< ./http-client.private/waypoint-test.png
 --WaypointBoundary--
 
 ### 생성한 테스트 게시글 정리 (사진 파일은 로컬 저장소에 남는다)
