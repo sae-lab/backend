@@ -23,6 +23,24 @@ spring:
       ddl-auto: ${JPA_DDL_AUTO:update}
     show-sql: ${JPA_SHOW_SQL:false}
 
+  # 비밀번호 재설정 코드 발송용 SMTP.
+  # MAIL_HOST가 비어 있으면 발송 기능만 꺼지고 앱은 정상 부팅한다
+  # (PasswordResetMailSender가 없을 수 있다고 보고 받는다).
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
 jwt:
   secret: "${JWT_SECRET}"
   expiration_time: ${JWT_EXPIRATION_TIME:86400000}
@@ -68,3 +86,6 @@ app:
     allowed-origin-patterns: "${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:*}"
   image-proxy:
     allowed-hosts: "${IMAGE_PROXY_ALLOWED_HOSTS:tong.visitkorea.or.kr}"
+  password-reset:
+    # 보내는 사람 주소. 비워두면 MAIL_USERNAME을 그대로 쓴다.
+    mail-from: "${MAIL_FROM:}"

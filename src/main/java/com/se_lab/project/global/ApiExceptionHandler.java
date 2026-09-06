@@ -1,6 +1,7 @@
 package com.se_lab.project.global;
 
 import com.se_lab.project.service.ImageUploadException;
+import com.se_lab.project.service.PasswordResetException;
 import com.se_lab.project.service.StorageOperationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +15,12 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(ImageUploadException.class)
     public ResponseEntity<Map<String, String>> handleImageUpload(ImageUploadException exception) {
+        return ResponseEntity.status(exception.getStatus())
+                .body(Map.of("message", exception.getMessage()));
+    }
+
+    @ExceptionHandler(PasswordResetException.class)
+    public ResponseEntity<Map<String, String>> handlePasswordReset(PasswordResetException exception) {
         return ResponseEntity.status(exception.getStatus())
                 .body(Map.of("message", exception.getMessage()));
     }
