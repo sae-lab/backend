@@ -35,11 +35,18 @@ spring:
       mail:
         smtp:
           auth: true
+          # 587(STARTTLS)과 465(암묵적 SSL) 중 하나를 고른다.
+          # 호스팅에서 587 아웃바운드를 막아둔 경우 465로 우회할 수 있어
+          # 환경변수만 바꿔 시도해볼 수 있게 열어둔다.
           starttls:
-            enable: true
-          connectiontimeout: 5000
-          timeout: 5000
-          writetimeout: 5000
+            enable: ${MAIL_STARTTLS_ENABLE:true}
+          ssl:
+            enable: ${MAIL_SSL_ENABLE:false}
+          # 막힌 포트로 붙으면 응답 없이 대기하므로, 사용자를 오래 기다리게
+          # 두지 않도록 짧게 끊는다.
+          connectiontimeout: ${MAIL_TIMEOUT_MS:10000}
+          timeout: ${MAIL_TIMEOUT_MS:10000}
+          writetimeout: ${MAIL_TIMEOUT_MS:10000}
 
 jwt:
   secret: "${JWT_SECRET}"
