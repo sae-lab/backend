@@ -91,7 +91,7 @@ public class UserRouteController {
             @RequestParam(required = false) String memo,
             @RequestParam double lat,
             @RequestParam double lng,
-            @RequestParam MultipartFile photo) {
+            @RequestParam(required = false) MultipartFile photo) {
         try {
             userRouteService.addWaypoint(id, currentUserEmail(), title, memo, lat, lng, photo);
             return ResponseEntity.ok().build();

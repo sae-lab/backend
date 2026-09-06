@@ -287,7 +287,8 @@ public class UserRouteServiceImpl implements UserRouteService {
             throw new AccessDeniedException("본인이 작성한 게시글에만 웨이포인트를 추가할 수 있습니다.");
         }
 
-        String photoUrl = storageService.store(photo);
+        // 사진은 선택 항목이다. 첨부하지 않으면 저장 단계를 건너뛰고 photoUrl을 비워 둔다.
+        String photoUrl = (photo == null || photo.isEmpty()) ? null : storageService.store(photo);
 
         route.addWaypoint(UserRouteWaypoint.builder()
                 .sequenceOrder(route.getWaypoints().size() + 1)
@@ -389,7 +390,13 @@ public class UserRouteServiceImpl implements UserRouteService {
         boolean likedByMe = currentUser != null && userRouteLikeRepository.existsByUserAndRoute(currentUser, route);
         long scrapCount = userRouteScrapRepository.countByRoute(route);
         boolean scrapedByMe = currentUser != null && userRouteScrapRepository.existsByUserAndRoute(currentUser, route);
-        String thumbnailUrl = route.getWaypoints().isEmpty() ? "" : route.getWaypoints().get(0).getPhotoUrl();
+        // 사진 없는 웨이포인트도 허용하므로, 첫 번째가 아니라 사진이 있는 첫 웨이포인트를 표지로 쓴다.
+        // 전부 사진이 없으면 빈 문자열을 주고 목록 화면이 대체 표지를 그린다.
+        String thumbnailUrl = route.getWaypoints().stream()
+                .map(UserRouteWaypoint::getPhotoUrl)
+                .filter(url -> url != null && !url.isBlank())
+                .findFirst()
+                .orElse("");
 
         return UserRouteSummaryDto.builder()
                 .id(route.getId())
