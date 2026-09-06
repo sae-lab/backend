@@ -72,7 +72,7 @@ class HomeRecommendationCacheTest {
         Object cachedCandidates = cacheManager.getCache(CacheConfig.HOME_RECOMMENDATION_CANDIDATES).get("default").get();
         assertThat(cachedCandidates).isInstanceOf(List.class);
         List<?> candidates = (List<?>) cachedCandidates;
-        assertThat(candidates).allMatch(candidate -> candidate.getClass() == BasePlaceDto.class);
+        assertThat(candidates).allMatch(candidate -> candidate instanceof BasePlaceDto);
         assertThat(tourApiService.getHomeRecommendationCandidates())
                 .extracting(BasePlaceDto::getTitle)
                 .containsExactly("첫 번째", "두 번째", "세 번째", "네 번째");
