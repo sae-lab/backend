@@ -140,6 +140,54 @@ class HomeRecommendationCacheTest {
         verify(restTemplate, times(1)).getForObject(anyString(), eq(String.class));
     }
 
+    @Test
+    void coalescesConcurrentEmptyCandidateLoadsWithoutCachingTheResult(
+            @Autowired TourApiService tourApiService,
+            @Autowired RestTemplate restTemplate,
+            @Autowired CacheManager cacheManager
+    ) throws Exception {
+        int requestCount = 8;
+        CountDownLatch ready = new CountDownLatch(requestCount);
+        CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch upstreamStarted = new CountDownLatch(1);
+        CountDownLatch releaseUpstream = new CountDownLatch(1);
+
+        when(restTemplate.getForObject(anyString(), eq(String.class))).thenAnswer(invocation -> {
+            upstreamStarted.countDown();
+            assertThat(releaseUpstream.await(5, TimeUnit.SECONDS)).isTrue();
+            return EMPTY_TOUR_API_RESPONSE;
+        });
+
+        ExecutorService executor = Executors.newFixedThreadPool(requestCount);
+        try {
+            List<java.util.concurrent.Future<List<BasePlaceDto>>> results = IntStream.range(0, requestCount)
+                    .mapToObj(index -> executor.submit(() -> {
+                        ready.countDown();
+                        assertThat(start.await(5, TimeUnit.SECONDS)).isTrue();
+                        return tourApiService.getHomeRecommendationCandidates();
+                    }))
+                    .toList();
+
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            assertThat(upstreamStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            Thread.sleep(100);
+            releaseUpstream.countDown();
+
+            for (java.util.concurrent.Future<List<BasePlaceDto>> result : results) {
+                assertThat(result.get(5, TimeUnit.SECONDS)).isEmpty();
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        verify(restTemplate, times(1)).getForObject(anyString(), eq(String.class));
+        assertThat(cacheManager.getCache(CacheConfig.HOME_RECOMMENDATION_CANDIDATES).get("default")).isNull();
+
+        assertThat(tourApiService.getHomeRecommendationCandidates()).isEmpty();
+        verify(restTemplate, times(2)).getForObject(anyString(), eq(String.class));
+    }
+
     @Configuration
     @EnableCaching
     static class TestConfiguration {

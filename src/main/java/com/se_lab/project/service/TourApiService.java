@@ -19,6 +19,9 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 @Slf4j
 @Service
@@ -34,6 +37,8 @@ public class TourApiService {
     private final String searchKeywordEndpoint;
     private final String detailCommonEndpoint;
     private final Cache<Object, Object> homeRecommendationCandidatesCache;
+    private final ConcurrentMap<Object, CompletableFuture<List<BasePlaceDto>>> homeRecommendationCandidatesLoads
+            = new ConcurrentHashMap<>();
 
     public TourApiService(
             RestTemplate restTemplate,
@@ -104,21 +109,37 @@ public class TourApiService {
 
     @SuppressWarnings("unchecked")
     public List<BasePlaceDto> getHomeRecommendationCandidates() {
-        List<BasePlaceDto> candidates = (List<BasePlaceDto>) homeRecommendationCandidatesCache.get(
-                "default",
-                key -> {
-                    List<BasePlaceDto> places = getPlacesByArea(
-                            TourApiConstants.DEFAULT_AREA_CODE,
-                            null,
-                            TourApiConstants.DEFAULT_CONTENT_TYPE_ID,
-                            200
-                    );
+        Object key = "default";
+        List<BasePlaceDto> cachedCandidates = (List<BasePlaceDto>) homeRecommendationCandidatesCache.getIfPresent(key);
+        if (cachedCandidates != null) {
+            return cachedCandidates;
+        }
 
-                    // Caffeine does not store a null mapping, preserving non-caching for empty results.
-                    return places == null || places.isEmpty() ? null : List.copyOf(places);
-                }
-        );
-        return candidates == null ? List.of() : candidates;
+        CompletableFuture<List<BasePlaceDto>> newLoad = new CompletableFuture<>();
+        CompletableFuture<List<BasePlaceDto>> activeLoad = homeRecommendationCandidatesLoads.putIfAbsent(key, newLoad);
+        if (activeLoad != null) {
+            return activeLoad.join();
+        }
+
+        try {
+            List<BasePlaceDto> places = getPlacesByArea(
+                    TourApiConstants.DEFAULT_AREA_CODE,
+                    null,
+                    TourApiConstants.DEFAULT_CONTENT_TYPE_ID,
+                    200
+            );
+            List<BasePlaceDto> candidates = places == null || places.isEmpty() ? List.of() : List.copyOf(places);
+            if (!candidates.isEmpty()) {
+                homeRecommendationCandidatesCache.put(key, candidates);
+            }
+            newLoad.complete(candidates);
+            return candidates;
+        } catch (RuntimeException | Error exception) {
+            newLoad.completeExceptionally(exception);
+            throw exception;
+        } finally {
+            homeRecommendationCandidatesLoads.remove(key, newLoad);
+        }
     }
 
     public List<BasePlaceDto> searchByKeyword(String keyword, int numOfRows) {
