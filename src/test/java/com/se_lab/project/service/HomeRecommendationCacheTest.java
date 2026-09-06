@@ -1,6 +1,7 @@
 package com.se_lab.project.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Cache;
 import com.se_lab.project.config.CacheConfig;
 import com.se_lab.project.dto.BasePlaceDto;
 import com.se_lab.project.dto.HomeRecommendDto;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.cache.caffeine.CaffeineCache;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,6 +31,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @SpringJUnitConfig(HomeRecommendationCacheTest.TestConfiguration.class)
@@ -186,6 +189,35 @@ class HomeRecommendationCacheTest {
 
         assertThat(tourApiService.getHomeRecommendationCandidates()).isEmpty();
         verify(restTemplate, times(2)).getForObject(anyString(), eq(String.class));
+    }
+
+    @Test
+    void rechecksPersistentCacheAfterAcquiringLoaderOwnership() {
+        RestTemplate restTemplate = mock(RestTemplate.class);
+        CacheManager cacheManager = mock(CacheManager.class);
+        CaffeineCache caffeineCache = mock(CaffeineCache.class);
+        Cache<Object, Object> nativeCache = mock(Cache.class);
+        List<BasePlaceDto> candidates = List.of(BasePlaceDto.builder().contentId("cached").build());
+
+        when(cacheManager.getCache(CacheConfig.HOME_RECOMMENDATION_CANDIDATES)).thenReturn(caffeineCache);
+        when(caffeineCache.getNativeCache()).thenReturn(nativeCache);
+        when(nativeCache.getIfPresent("default")).thenReturn(null, candidates);
+
+        TourApiService tourApiService = new TourApiService(
+                restTemplate,
+                new ObjectMapper(),
+                "https://tour.example.com",
+                "/location",
+                "/area",
+                "test-key",
+                "/search",
+                "/detail",
+                cacheManager
+        );
+
+        assertThat(tourApiService.getHomeRecommendationCandidates()).isSameAs(candidates);
+        verify(nativeCache, times(2)).getIfPresent("default");
+        verifyNoInteractions(restTemplate);
     }
 
     @Configuration

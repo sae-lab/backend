@@ -122,6 +122,12 @@ public class TourApiService {
         }
 
         try {
+            cachedCandidates = (List<BasePlaceDto>) homeRecommendationCandidatesCache.getIfPresent(key);
+            if (cachedCandidates != null) {
+                newLoad.complete(cachedCandidates);
+                return cachedCandidates;
+            }
+
             List<BasePlaceDto> places = getPlacesByArea(
                     TourApiConstants.DEFAULT_AREA_CODE,
                     null,
