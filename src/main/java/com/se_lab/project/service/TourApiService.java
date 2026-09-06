@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.se_lab.project.constants.TourApiConstants;
 import com.se_lab.project.constants.TourTimeConstants;
+import com.se_lab.project.config.CacheConfig;
 import com.se_lab.project.dto.BasePlaceDto;
 import com.se_lab.project.dto.CourseDetailDto;
 import lombok.extern.slf4j.Slf4j;
@@ -50,7 +51,6 @@ public class TourApiService {
         this.detailCommonEndpoint = detailCommonEndpoint;
     }
 
-    @Cacheable(value = "nearbyPlaces", key = "#mapX + '_' + #mapY")
     public List<BasePlaceDto> getNearbyPlaces(String mapX, String mapY) {
         return getNearbyPlaces(mapX, mapY, null);
     }
@@ -93,6 +93,23 @@ public class TourApiService {
         return fetchAndParse(fullUrl, "getPlacesByArea", false);
     }
 
+    @Cacheable(
+            cacheNames = CacheConfig.HOME_RECOMMENDATION_CANDIDATES,
+            key = "'default'",
+            unless = "#result == null || #result.isEmpty()"
+    )
+    public List<BasePlaceDto> getHomeRecommendationCandidates() {
+        List<BasePlaceDto> places = getPlacesByArea(
+                TourApiConstants.DEFAULT_AREA_CODE,
+                null,
+                TourApiConstants.DEFAULT_CONTENT_TYPE_ID,
+                200
+        );
+
+        // The cached list itself must never be shuffled by a home request.
+        return List.copyOf(places);
+    }
+
     public List<BasePlaceDto> searchByKeyword(String keyword, int numOfRows) {
         UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromHttpUrl(baseUrl + searchKeywordEndpoint)
                 .queryParam("serviceKey", serviceKey)
@@ -111,8 +128,6 @@ public class TourApiService {
     // 주의: 이 API 버전(KorService2)의 detailCommon2는 defaultYN/firstImageYN 같은
     // 부가 플래그나 contentTypeId를 넘기면 INVALID_REQUEST_PARAMETER_ERROR를 낸다.
     // contentId만 넘겨도 overview/mapx/mapy/firstimage가 기본으로 포함되어 온다.
-    // 실패(null)는 캐싱하지 않는다 — 일시적인 네트워크 오류까지 영구 캐싱되면 안 되므로.
-    @Cacheable(value = "placeDetail", key = "#contentId", unless = "#result == null")
     public CourseDetailDto getPlaceDetail(String contentId) {
         String fullUrl = UriComponentsBuilder.fromHttpUrl(baseUrl + detailCommonEndpoint)
                 .queryParam("serviceKey", serviceKey)
