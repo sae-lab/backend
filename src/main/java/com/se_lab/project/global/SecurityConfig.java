@@ -1,5 +1,6 @@
 package com.se_lab.project.global;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor; // 1. 필수!
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -49,6 +50,18 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/images/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/user-routes/**").permitAll()
                         .anyRequest().authenticated()
+                )
+                // 로그인이 안 된(또는 토큰이 만료된) 요청은 403이 아니라 401로 답한다.
+                // 스프링 기본값은 둘 다 403이라, 앱에서 "로그인이 필요하다"와
+                // "권한이 없다"(예: 남의 글 수정)를 구분할 수 없다. 구분이 안 되면
+                // 만료된 세션을 정리할 수 없어, 앱이 로그인된 줄 알면서 모든 요청이
+                // 실패하는 상태에 갇힌다.
+                .exceptionHandling(handling -> handling
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.getWriter().write("{\"message\":\"로그인이 필요합니다.\"}");
+                        })
                 )
                 .addFilterBefore(new JwtAuthenticationFilter(jwtUtil), UsernamePasswordAuthenticationFilter.class);
         return http.build();
