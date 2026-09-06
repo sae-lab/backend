@@ -2,19 +2,26 @@ package com.se_lab.project.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Cache;
 import com.se_lab.project.constants.TourApiConstants;
 import com.se_lab.project.constants.TourTimeConstants;
+import com.se_lab.project.config.CacheConfig;
 import com.se_lab.project.dto.BasePlaceDto;
 import com.se_lab.project.dto.CourseDetailDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.caffeine.CaffeineCache;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 @Slf4j
 @Service
@@ -29,6 +36,9 @@ public class TourApiService {
     private final String serviceKey;
     private final String searchKeywordEndpoint;
     private final String detailCommonEndpoint;
+    private final Cache<Object, Object> homeRecommendationCandidatesCache;
+    private final ConcurrentMap<Object, CompletableFuture<List<BasePlaceDto>>> homeRecommendationCandidatesLoads
+            = new ConcurrentHashMap<>();
 
     public TourApiService(
             RestTemplate restTemplate,
@@ -38,7 +48,8 @@ public class TourApiService {
             @Value("${tour-api.endpoints.area-based}") String areaBasedEndpoint,
             @Value("${tour-api.service-key}") String serviceKey,
             @Value("${tour-api.endpoints.search-keyword}") String searchKeywordEndpoint,
-            @Value("${tour-api.endpoints.detail-common}") String detailCommonEndpoint
+            @Value("${tour-api.endpoints.detail-common}") String detailCommonEndpoint,
+            CacheManager cacheManager
     ) {
         this.restTemplate = restTemplate;
         this.mapper = mapper;
@@ -48,9 +59,12 @@ public class TourApiService {
         this.serviceKey = serviceKey;
         this.searchKeywordEndpoint = searchKeywordEndpoint;
         this.detailCommonEndpoint = detailCommonEndpoint;
+        CaffeineCache cache = (CaffeineCache) Objects.requireNonNull(
+                cacheManager.getCache(CacheConfig.HOME_RECOMMENDATION_CANDIDATES)
+        );
+        this.homeRecommendationCandidatesCache = cache.getNativeCache();
     }
 
-    @Cacheable(value = "nearbyPlaces", key = "#mapX + '_' + #mapY")
     public List<BasePlaceDto> getNearbyPlaces(String mapX, String mapY) {
         return getNearbyPlaces(mapX, mapY, null);
     }
@@ -93,6 +107,47 @@ public class TourApiService {
         return fetchAndParse(fullUrl, "getPlacesByArea", false);
     }
 
+    @SuppressWarnings("unchecked")
+    public List<BasePlaceDto> getHomeRecommendationCandidates() {
+        Object key = "default";
+        List<BasePlaceDto> cachedCandidates = (List<BasePlaceDto>) homeRecommendationCandidatesCache.getIfPresent(key);
+        if (cachedCandidates != null) {
+            return cachedCandidates;
+        }
+
+        CompletableFuture<List<BasePlaceDto>> newLoad = new CompletableFuture<>();
+        CompletableFuture<List<BasePlaceDto>> activeLoad = homeRecommendationCandidatesLoads.putIfAbsent(key, newLoad);
+        if (activeLoad != null) {
+            return activeLoad.join();
+        }
+
+        try {
+            cachedCandidates = (List<BasePlaceDto>) homeRecommendationCandidatesCache.getIfPresent(key);
+            if (cachedCandidates != null) {
+                newLoad.complete(cachedCandidates);
+                return cachedCandidates;
+            }
+
+            List<BasePlaceDto> places = getPlacesByArea(
+                    TourApiConstants.DEFAULT_AREA_CODE,
+                    null,
+                    TourApiConstants.DEFAULT_CONTENT_TYPE_ID,
+                    200
+            );
+            List<BasePlaceDto> candidates = places == null || places.isEmpty() ? List.of() : List.copyOf(places);
+            if (!candidates.isEmpty()) {
+                homeRecommendationCandidatesCache.put(key, candidates);
+            }
+            newLoad.complete(candidates);
+            return candidates;
+        } catch (RuntimeException | Error exception) {
+            newLoad.completeExceptionally(exception);
+            throw exception;
+        } finally {
+            homeRecommendationCandidatesLoads.remove(key, newLoad);
+        }
+    }
+
     public List<BasePlaceDto> searchByKeyword(String keyword, int numOfRows) {
         UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromHttpUrl(baseUrl + searchKeywordEndpoint)
                 .queryParam("serviceKey", serviceKey)
@@ -111,8 +166,6 @@ public class TourApiService {
     // 주의: 이 API 버전(KorService2)의 detailCommon2는 defaultYN/firstImageYN 같은
     // 부가 플래그나 contentTypeId를 넘기면 INVALID_REQUEST_PARAMETER_ERROR를 낸다.
     // contentId만 넘겨도 overview/mapx/mapy/firstimage가 기본으로 포함되어 온다.
-    // 실패(null)는 캐싱하지 않는다 — 일시적인 네트워크 오류까지 영구 캐싱되면 안 되므로.
-    @Cacheable(value = "placeDetail", key = "#contentId", unless = "#result == null")
     public CourseDetailDto getPlaceDetail(String contentId) {
         String fullUrl = UriComponentsBuilder.fromHttpUrl(baseUrl + detailCommonEndpoint)
                 .queryParam("serviceKey", serviceKey)

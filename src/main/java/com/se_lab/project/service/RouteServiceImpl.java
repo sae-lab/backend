@@ -71,14 +71,14 @@ public class RouteServiceImpl implements RouteService {
 
     @Override
     public List<HomeRecommendDto> getRandomRecommendRoutes(int count) {
-        List<BasePlaceDto> allRoutes = tourApiService.getPlacesByArea(
-                TourApiConstants.DEFAULT_AREA_CODE, null, TourApiConstants.DEFAULT_CONTENT_TYPE_ID, 200);
+        List<BasePlaceDto> allRoutes = tourApiService.getHomeRecommendationCandidates();
 
         if (allRoutes == null || allRoutes.isEmpty()) return Collections.emptyList();
 
-        Collections.shuffle(allRoutes);
+        List<BasePlaceDto> shuffledRoutes = new java.util.ArrayList<>(allRoutes);
+        Collections.shuffle(shuffledRoutes);
 
-        return allRoutes.stream()
+        return shuffledRoutes.stream()
                 .limit(count)
                 .map(place -> new HomeRecommendDto(place.getTitle(), place.getAddr1(), place.getLatitude(), place.getLongitude(), place.getThumbnailUrl(), place.getContentId(), "보통"))
                 .collect(Collectors.toList());
