@@ -48,6 +48,12 @@ public class User {
         this.name = name;
     }
 
+    /// 비밀번호 재설정용. 넘어오는 값은 이미 인코딩된 것이어야 한다
+    /// (평문을 그대로 넣으면 로그인 비교가 영영 실패한다).
+    public void changePassword(String encodedPassword) {
+        this.password = encodedPassword;
+    }
+
     // 게시판/댓글 등 공개 화면에 표시할 이름. 실명(name)은 절대 여기 섞이지 않는다.
     public String getDisplayName() {
         return (nickname != null && !nickname.isBlank()) ? nickname : "익명" + id;

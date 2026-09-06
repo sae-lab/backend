@@ -3,6 +3,7 @@ package com.se_lab.project.controller;
 import com.se_lab.project.entity.User;
 import com.se_lab.project.global.JwtUtil;
 import com.se_lab.project.repository.UserRepository;
+import com.se_lab.project.service.PasswordResetService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -17,12 +18,15 @@ public class AuthController {
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final PasswordResetService passwordResetService;
 
     // 의존성 주입 (DB와 암호화 도구를 가져옵니다)
-    public AuthController(JwtUtil jwtUtil, UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public AuthController(JwtUtil jwtUtil, UserRepository userRepository, PasswordEncoder passwordEncoder,
+                          PasswordResetService passwordResetService) {
         this.jwtUtil = jwtUtil;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.passwordResetService = passwordResetService;
     }
 
     // 🚀 1. 진짜 회원가입 API
@@ -76,5 +80,23 @@ public class AuthController {
         } else {
             return ResponseEntity.status(401).body(Map.of("message", "이메일 또는 비밀번호가 틀렸습니다."));
         }
+    }
+
+    // 🚀 3. 비밀번호 재설정 - 코드 발송
+    // 가입 여부와 무관하게 항상 200을 준다. 응답이 갈리면 어떤 이메일이 가입돼
+    // 있는지 알아내는 통로가 된다.
+    @PostMapping("/password-reset/request")
+    public ResponseEntity<?> requestPasswordReset(@RequestBody Map<String, String> body) {
+        passwordResetService.requestCode(body.get("email"));
+        return ResponseEntity.ok(Map.of(
+                "message", "인증코드를 메일로 보냈습니다. 받은편지함을 확인해주세요."));
+    }
+
+    // 🚀 4. 비밀번호 재설정 - 코드 확인 후 새 비밀번호 설정
+    @PostMapping("/password-reset/confirm")
+    public ResponseEntity<?> confirmPasswordReset(@RequestBody Map<String, String> body) {
+        passwordResetService.confirmReset(
+                body.get("email"), body.get("code"), body.get("newPassword"));
+        return ResponseEntity.ok(Map.of("message", "비밀번호가 변경되었습니다. 새 비밀번호로 로그인해주세요."));
     }
 }
