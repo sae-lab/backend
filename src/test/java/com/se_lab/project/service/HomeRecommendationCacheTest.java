@@ -16,6 +16,11 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -93,6 +98,48 @@ class HomeRecommendationCacheTest {
         assertThat(cacheManager.getCache(CacheConfig.HOME_RECOMMENDATION_CANDIDATES).get("default")).isNull();
     }
 
+    @Test
+    void coalescesConcurrentNonEmptyCandidateCacheMisses(
+            @Autowired TourApiService tourApiService,
+            @Autowired RestTemplate restTemplate
+    ) throws Exception {
+        int requestCount = 8;
+        CountDownLatch ready = new CountDownLatch(requestCount);
+        CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch upstreamStarted = new CountDownLatch(1);
+        CountDownLatch releaseUpstream = new CountDownLatch(1);
+
+        when(restTemplate.getForObject(anyString(), eq(String.class))).thenAnswer(invocation -> {
+            upstreamStarted.countDown();
+            assertThat(releaseUpstream.await(5, TimeUnit.SECONDS)).isTrue();
+            return TOUR_API_RESPONSE;
+        });
+
+        ExecutorService executor = Executors.newFixedThreadPool(requestCount);
+        try {
+            List<java.util.concurrent.Future<List<BasePlaceDto>>> results = IntStream.range(0, requestCount)
+                    .mapToObj(index -> executor.submit(() -> {
+                        ready.countDown();
+                        assertThat(start.await(5, TimeUnit.SECONDS)).isTrue();
+                        return tourApiService.getHomeRecommendationCandidates();
+                    }))
+                    .toList();
+
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            assertThat(upstreamStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            releaseUpstream.countDown();
+
+            for (java.util.concurrent.Future<List<BasePlaceDto>> result : results) {
+                assertThat(result.get(5, TimeUnit.SECONDS)).hasSize(4);
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        verify(restTemplate, times(1)).getForObject(anyString(), eq(String.class));
+    }
+
     @Configuration
     @EnableCaching
     static class TestConfiguration {
@@ -108,7 +155,7 @@ class HomeRecommendationCacheTest {
         }
 
         @Bean
-        TourApiService tourApiService(RestTemplate restTemplate) {
+        TourApiService tourApiService(RestTemplate restTemplate, CacheManager cacheManager) {
             return new TourApiService(
                     restTemplate,
                     new ObjectMapper(),
@@ -117,7 +164,8 @@ class HomeRecommendationCacheTest {
                     "/area",
                     "test-key",
                     "/search",
-                    "/detail"
+                    "/detail",
+                    cacheManager
             );
         }
 

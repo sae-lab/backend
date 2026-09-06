@@ -2,6 +2,7 @@ package com.se_lab.project.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Cache;
 import com.se_lab.project.constants.TourApiConstants;
 import com.se_lab.project.constants.TourTimeConstants;
 import com.se_lab.project.config.CacheConfig;
@@ -9,13 +10,15 @@ import com.se_lab.project.dto.BasePlaceDto;
 import com.se_lab.project.dto.CourseDetailDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.caffeine.CaffeineCache;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -30,6 +33,7 @@ public class TourApiService {
     private final String serviceKey;
     private final String searchKeywordEndpoint;
     private final String detailCommonEndpoint;
+    private final Cache<Object, Object> homeRecommendationCandidatesCache;
 
     public TourApiService(
             RestTemplate restTemplate,
@@ -39,7 +43,8 @@ public class TourApiService {
             @Value("${tour-api.endpoints.area-based}") String areaBasedEndpoint,
             @Value("${tour-api.service-key}") String serviceKey,
             @Value("${tour-api.endpoints.search-keyword}") String searchKeywordEndpoint,
-            @Value("${tour-api.endpoints.detail-common}") String detailCommonEndpoint
+            @Value("${tour-api.endpoints.detail-common}") String detailCommonEndpoint,
+            CacheManager cacheManager
     ) {
         this.restTemplate = restTemplate;
         this.mapper = mapper;
@@ -49,6 +54,10 @@ public class TourApiService {
         this.serviceKey = serviceKey;
         this.searchKeywordEndpoint = searchKeywordEndpoint;
         this.detailCommonEndpoint = detailCommonEndpoint;
+        CaffeineCache cache = (CaffeineCache) Objects.requireNonNull(
+                cacheManager.getCache(CacheConfig.HOME_RECOMMENDATION_CANDIDATES)
+        );
+        this.homeRecommendationCandidatesCache = cache.getNativeCache();
     }
 
     public List<BasePlaceDto> getNearbyPlaces(String mapX, String mapY) {
@@ -93,21 +102,23 @@ public class TourApiService {
         return fetchAndParse(fullUrl, "getPlacesByArea", false);
     }
 
-    @Cacheable(
-            cacheNames = CacheConfig.HOME_RECOMMENDATION_CANDIDATES,
-            key = "'default'",
-            unless = "#result == null || #result.isEmpty()"
-    )
+    @SuppressWarnings("unchecked")
     public List<BasePlaceDto> getHomeRecommendationCandidates() {
-        List<BasePlaceDto> places = getPlacesByArea(
-                TourApiConstants.DEFAULT_AREA_CODE,
-                null,
-                TourApiConstants.DEFAULT_CONTENT_TYPE_ID,
-                200
-        );
+        List<BasePlaceDto> candidates = (List<BasePlaceDto>) homeRecommendationCandidatesCache.get(
+                "default",
+                key -> {
+                    List<BasePlaceDto> places = getPlacesByArea(
+                            TourApiConstants.DEFAULT_AREA_CODE,
+                            null,
+                            TourApiConstants.DEFAULT_CONTENT_TYPE_ID,
+                            200
+                    );
 
-        // The cached list itself must never be shuffled by a home request.
-        return List.copyOf(places);
+                    // Caffeine does not store a null mapping, preserving non-caching for empty results.
+                    return places == null || places.isEmpty() ? null : List.copyOf(places);
+                }
+        );
+        return candidates == null ? List.of() : candidates;
     }
 
     public List<BasePlaceDto> searchByKeyword(String keyword, int numOfRows) {
