@@ -45,6 +45,7 @@ public class UserRouteServiceImpl implements UserRouteService {
     private final StorageService storageService;
     private final PilgrimageService pilgrimageService;
     private final OsrmWalkingDirectionsService osrmWalkingDirectionsService;
+    private final NotificationService notificationService;
 
     // 이보다 웨이포인트가 많으면(예: AI 순례길에서 옮겨진 대형 게시물) 다리(leg)마다
     // 외부 도보 경로 API를 부르는 비용이 너무 커져서, 재정렬만 하고 직선으로 잇는다.
@@ -267,6 +268,8 @@ public class UserRouteServiceImpl implements UserRouteService {
         // 웨이포인트는 UserRoute의 @OneToMany(cascade=ALL)로 route 삭제 시 함께 삭제된다.
         // (업로드된 사진 파일 자체는 디스크에서 지우지 않는다 — 기존 댓글/좋아요 삭제 시에도 마찬가지로
         // 파일 정리는 하지 않는 패턴을 따름)
+        // 알림이 게시물과 댓글을 FK로 참조하므로 가장 먼저 지운다.
+        notificationService.removeForRoute(route);
         // 대댓글이 부모 댓글을 FK로 참조하므로 대댓글부터 지워야 한다.
         userRouteCommentRepository.deleteByRouteAndParentIsNotNull(route);
         userRouteCommentRepository.deleteByRouteAndParentIsNull(route);
@@ -310,10 +313,14 @@ public class UserRouteServiceImpl implements UserRouteService {
         return userRouteLikeRepository.findByUserAndRoute(user, route)
                 .map(existing -> {
                     userRouteLikeRepository.delete(existing);
+                    // 좋아요를 취소하면 알림도 거둔다. 남겨두면 누르지도 않은
+                    // 좋아요가 상대 알림함에 계속 보인다.
+                    notificationService.removeLikeNotification(route, user);
                     return false;
                 })
                 .orElseGet(() -> {
                     userRouteLikeRepository.save(UserRouteLike.builder().user(user).route(route).build());
+                    notificationService.notifyLike(route, user);
                     return true;
                 });
     }
@@ -363,6 +370,8 @@ public class UserRouteServiceImpl implements UserRouteService {
                 .parent(parent)
                 .build());
 
+        notificationService.notifyComment(route, author, comment);
+
         return toCommentDto(comment, author);
     }
 
@@ -378,9 +387,14 @@ public class UserRouteServiceImpl implements UserRouteService {
         }
 
         // 최상위 댓글을 지우면 거기 달린 대댓글도 함께 지운다 (다른 사람이 쓴 답글이어도 함께 삭제됨).
+        // 알림이 댓글을 FK로 참조하므로, 댓글보다 알림을 먼저 지워야 제약조건에 걸리지 않는다.
         if (comment.getParent() == null) {
+            for (UserRouteComment reply : userRouteCommentRepository.findByParentOrderByCreatedAtAsc(comment)) {
+                notificationService.removeForComment(reply);
+            }
             userRouteCommentRepository.deleteByParent(comment);
         }
+        notificationService.removeForComment(comment);
         userRouteCommentRepository.delete(comment);
     }
 
