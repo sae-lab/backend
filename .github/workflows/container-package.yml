@@ -22,6 +22,21 @@ jobs:
     permissions:
       contents: read
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: sightseeing
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -38,6 +53,57 @@ jobs:
 
       - name: Build container image
         run: docker build --tag sightseeing-backend-prod:test .
+
+      - name: Start application container
+        run: |
+          docker run --detach \
+            --name sightseeing-backend-smoke \
+            --add-host host.docker.internal:host-gateway \
+            --publish 8080:8080 \
+            --env PORT=8080 \
+            --env DB_URL=jdbc:postgresql://host.docker.internal:5432/sightseeing \
+            --env DB_USERNAME=postgres \
+            --env DB_PASSWORD=postgres \
+            --env JWT_SECRET=ci-only-secret-key-ci-only-secret-key-ci-only-secret-key-1234 \
+            --env API_TOKEN=ci-placeholder \
+            --env TOUR_API_BASE_URL=https://apis.data.go.kr/B551011/KorService2 \
+            --env ROUTE_API_BASE_URL=https://apis.data.go.kr/B551011/Durunubi \
+            --env KAKAO_API_KEY=ci-placeholder \
+            --env STORAGE_TYPE=local \
+            --env APP_SEED_ENABLED=false \
+            sightseeing-backend-prod:test
+
+      - name: Wait for application startup
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail --max-time 2 http://127.0.0.1:8080/livez >/dev/null; then
+              echo "Application liveness probe is UP"
+              exit 0
+            fi
+
+            if ! docker inspect --format='{{.State.Running}}' sightseeing-backend-smoke 2>/dev/null | grep -q '^true$'; then
+              echo "Application container exited before becoming live" >&2
+              docker logs sightseeing-backend-smoke >&2 || true
+              exit 1
+            fi
+
+            sleep 1
+          done
+
+          echo "Application did not become live within 60 seconds" >&2
+          docker logs sightseeing-backend-smoke >&2 || true
+          exit 1
+
+      - name: Verify health endpoints
+        run: bash scripts/verify-health-endpoints.sh http://127.0.0.1:8080 up
+
+      - name: Show application logs on failure
+        if: failure()
+        run: docker logs sightseeing-backend-smoke || true
+
+      - name: Stop application container
+        if: always()
+        run: docker rm --force sightseeing-backend-smoke || true
 
   publish:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
