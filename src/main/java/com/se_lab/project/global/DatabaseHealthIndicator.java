@@ -1,5 +1,6 @@
 package com.se_lab.project.global;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
@@ -26,6 +27,7 @@ public class DatabaseHealthIndicator implements HealthIndicator, AutoCloseable {
     private final DatabaseCheck databaseCheck;
     private final ThreadPoolExecutor executor;
 
+    @Autowired
     public DatabaseHealthIndicator(
             DataSourceProperties dataSourceProperties,
             @Value("${app.health.database.timeout:3s}") Duration timeout
