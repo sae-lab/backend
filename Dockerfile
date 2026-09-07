@@ -6,7 +6,7 @@ COPY gradlew build.gradle gradle.properties ./
 COPY gradle ./gradle
 RUN chmod +x gradlew \
     && for attempt in 1 2 3 4 5; do \
-      ./gradlew --no-daemon --network-timeout=120000 dependencies && break; \
+      ./gradlew --no-daemon dependencies && break; \
       if [ "$attempt" -eq 5 ]; then exit 1; fi; \
       sleep $((attempt * 10)); \
     done
