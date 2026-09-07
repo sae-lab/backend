@@ -4,7 +4,12 @@ WORKDIR /workspace
 
 COPY gradlew build.gradle gradle.properties ./
 COPY gradle ./gradle
-RUN chmod +x gradlew && ./gradlew --no-daemon dependencies
+RUN chmod +x gradlew \
+    && for attempt in 1 2 3; do \
+      ./gradlew --no-daemon dependencies && break; \
+      if [ "$attempt" -eq 3 ]; then exit 1; fi; \
+      sleep $((attempt * 5)); \
+    done
 
 COPY src ./src
 RUN ./gradlew --no-daemon clean bootJar
