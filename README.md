@@ -221,6 +221,7 @@ repository에는 Docker build 구성과 환경변수 기반 애플리케이션 �
 ## 관련 문서
 
 - [`docs/deployment-plan.md`](docs/deployment-plan.md): deployment 준비 및 검증 계획입니다. 아직 구현되지 않았을 수 있는 계획 작업과 결정을 포함합니다.
+- [`docs/release-process.md`](docs/release-process.md): branch 역할, version tag, GitHub Release 및 hotfix의 최소 운영 규칙입니다.
 - [`docs/features/LAB-12-route-planner.md`](docs/features/LAB-12-route-planner.md): route-planner 기능에 한정된 초기 메모입니다.
 - [`docs/api-spec.md`](docs/api-spec.md): 현재 비어 있으며 완성된 API 명세가 아닙니다.
 - [`.env.example`](.env.example): secret이 없는 로컬 환경변수 template입니다.
@@ -235,6 +236,6 @@ repository에는 Docker build 구성과 환경변수 기반 애플리케이션 �
 
 ## 기여하기
 
-`CONTRIBUTING.md`는 아직 추가되지 않았으므로, 공식 기여, branch, review, merge, release 규칙은 이 repository에 정의되어 있지 않습니다. 이 README는 추가 기여 규칙을 정의하지 않습니다.
+`CONTRIBUTING.md`는 아직 추가되지 않았습니다. 최소 branch 및 release 규칙은 [`docs/release-process.md`](docs/release-process.md)를 따르며, 그 밖의 공식 기여와 review 규칙은 아직 정의되어 있지 않습니다.
 
 ---

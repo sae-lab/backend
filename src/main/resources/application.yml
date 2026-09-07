@@ -6,6 +6,25 @@ logging:
   level:
     com.se_lab.project: ${APP_LOG_LEVEL:INFO}
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      probes:
+        enabled: true
+        add-additional-paths: true
+      group:
+        readiness:
+          include: "readinessState,db"
+        healthz:
+          include: "readinessState,db"
+          additional-path: "server:/healthz"
+
 spring:
   servlet:
     multipart:
@@ -87,6 +106,10 @@ storage:
     object-prefix: "${R2_OBJECT_PREFIX:dev}"
 
 app:
+  health:
+    database:
+      # Probe requests must finish before verify-health-endpoints.sh's 5-second deadline.
+      timeout: ${DATABASE_HEALTH_TIMEOUT:3s}
   cache:
     # 홈 추천 후보는 관광공사 데이터가 자주 바뀌지 않아 30분 동안 재사용한다.
     home-recommendation-candidates:

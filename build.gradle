@@ -9,7 +9,9 @@ group = 'com.se_lab'
 version = '0.0.1-SNAPSHOT'
 
 java {
-    sourceCompatibility = '17'
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
 }
 
 repositories {
@@ -20,6 +22,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-cache'
     // 비밀번호 재설정 코드 발송용. SMTP 설정(MAIL_*)이 없으면 JavaMailSender 빈이
     // 만들어지지 않으므로, 쓰는 쪽에서 ObjectProvider로 없을 수 있다고 보고 받는다.
