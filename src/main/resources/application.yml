@@ -6,6 +6,25 @@ logging:
   level:
     com.se_lab.project: ${APP_LOG_LEVEL:INFO}
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      probes:
+        enabled: true
+        add-additional-paths: true
+      group:
+        readiness:
+          include: "readinessState,db"
+        healthz:
+          include: "readinessState,db"
+          additional-path: "server:/healthz"
+
 spring:
   servlet:
     multipart:

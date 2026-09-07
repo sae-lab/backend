@@ -1,9 +1,10 @@
 # 백엔드 Render 배포 계획
 
-- 검토일: 2026-08-26
-- 검토 기준: 현재 `integration/render-test` 워킹 트리의 백엔드 코드와 설정
+- 최초 검토일: 2026-08-26
+- 최신 검증일: 2026-09-07 (`chore/production-readiness`)
+- 검토 기준: 현재 `dev` 기반 production readiness 워킹 트리의 백엔드 코드와 설정
 - 대상: Java/Spring Boot 백엔드의 Render Docker 배포 및 Supabase PostgreSQL 연결
-- 현재 단계: 승인된 1단계 보안 수정과 2단계 seeder 분리를 워킹 트리에 적용했다. 빌드, 테스트, 이미지 생성, 컨테이너 실행, 배포, DB 접속·변경은 수행하지 않았으며 3단계 로컬 검증은 사용자가 직접 수행한다.
+- 현재 단계: Java 17 toolchain과 Actuator health endpoint를 적용했다. Java 17 전체 테스트·`bootJar`, Podman amd64 이미지 빌드, 1536 MiB 제한 컨테이너의 Supabase 연결 및 `/livez`·`/readyz`·`/healthz` 응답을 검증했다. 외부 배포와 DB 변경은 수행하지 않았다.
 
 ## 1. 표기 원칙
 
@@ -55,7 +56,7 @@ Flutter 모바일/웹
 
 | 항목 | 확인된 사실 | 근거 |
 | --- | --- | --- |
-| Java | Java 17 | `build.gradle`, `Dockerfile` |
+| Java | Java 17 toolchain | `build.gradle`, `Dockerfile` |
 | Spring Boot | 3.2.4 | `build.gradle` |
 | Gradle | Wrapper 8.14 | `gradle/wrapper/gradle-wrapper.properties` |
 | 패키징 | Spring Boot 실행 JAR(`bootJar`) | Spring Boot Gradle plugin, `Dockerfile` |
@@ -77,19 +78,18 @@ Flutter 모바일/웹
 | Render가 `PORT`를 주입하면 실행 가능 | `server.port=${PORT:8080}`, `server.address=0.0.0.0`로 확인 | 유지 |
 | Supavisor Session Pooler 5432 사용 | Render는 IPv4 기반이고, 지속 실행되는 JDBC 백엔드와 prepared statement에는 Session mode가 적합 | 유지 |
 | Supabase SSL 필수 | 코드는 SSL을 별도로 강제하지 않는다. `DB_URL`의 JDBC 파라미터에 전적으로 의존 | `sslmode` 책임과 검증 절차 추가 |
-| `./gradlew clean test` 통과를 완료 조건으로 사용 | 테스트 의존성과 JUnit Platform 설정은 있으나 `src/test`에 테스트 파일이 없다. 현재는 0개 테스트로 성공할 수 있음 | 완료 조건 보완 |
+| `./gradlew clean test` 통과를 완료 조건으로 사용 | 2026-09-07 기준 21개 테스트가 실행되며 모두 통과 | 유지하되 통합 테스트 범위는 계속 확대 |
 | Docker 이미지 빌드 시 테스트도 검증 | `Dockerfile`은 `clean bootJar`만 실행하므로 테스트를 실행하지 않음 | 별도 테스트 게이트 필요 |
 | 운영 CORS는 환경변수로 제한 | 중앙 CORS 설정만 사용하도록 `AuthController`의 `@CrossOrigin(origins="*")`를 제거했다 | 코드 반영 완료, 런타임 CORS 검증 필요 |
 | 로컬 저장 모드의 업로드는 `/tmp` | Docker가 `FILE_UPLOAD_DIR=/tmp/uploads`를 기본 설정 | 로컬 검증용으로 유지. Render에서는 `STORAGE_TYPE=r2` 사용 |
-| 상태 확인은 공개 GET API 사용 | 전용 헬스 엔드포인트와 Actuator 의존성이 없음 | TCP 확인과 기능 확인을 분리하고 헬스 구현 결정 필요 |
+| 상태 확인은 공개 GET API 사용 | Actuator 기반 `/livez`, `/readyz`, `/healthz` 구현 및 테스트 완료 | liveness와 DB readiness 분리 |
 | DB 스키마 준비 절차 | Flyway/Liquibase가 없고 Hibernate 기본값이 `ddl-auto=update` | 마이그레이션 계획 추가 |
 
 ## 5. Gradle 빌드와 실행 명령
 
-다음 명령은 현재 Gradle 구성에서 유효한 절차다. 이 문서 검토 단계에서는 실행하지 않았다.
+다음 명령은 현재 Gradle 구성에서 유효하며 2026-09-07 Java 17로 실행했다.
 
 ```bash
-# 현재 테스트 파일이 없어 품질 게이트로는 불충분
 ./gradlew clean test
 
 # Dockerfile과 동일한 실행 JAR 생성
@@ -102,7 +102,7 @@ Flutter 모바일/웹
 java -jar build/libs/*.jar
 ```
 
-- **확인된 사실**: Java source compatibility는 17이고 test task는 JUnit Platform을 사용한다.
+- **확인된 사실**: Java toolchain은 17이고 test task는 JUnit Platform을 사용한다. 호스트 기본 Java 25가 아니라 Java 17을 선택해야 Gradle 8.14 지원 범위와 일치한다.
 - **확인된 사실**: Docker 빌드는 `./gradlew --no-daemon clean bootJar`를 실행하며 테스트를 생략한다.
 - **결정 필요**: Docker 빌드를 `clean build`로 바꿀지, CI에서 `clean test`를 선행하고 Docker는 `bootJar`만 수행할지 선택한다. 권장안은 CI 테스트와 이미지 빌드를 분리하는 것이다.
 
@@ -130,7 +130,7 @@ java -jar build/libs/*.jar
 
 - **확인된 사실**: `Dockerfile`과 `.dockerignore`는 Git 추적 중이며 원격 Render 빌드에 포함된다.
 - **확인된 사실**: `src/main/resources/application.yml`은 Git 추적 중이며 환경변수 매핑과 `PORT` 설정이 원격 빌드에 포함된다.
-- **결정 필요**: 전용 HTTP health 구현 후 Dockerfile에도 `HEALTHCHECK`를 추가할지는 선택 사항이다. Render 외부 check만 사용할 수도 있다.
+- **결정 필요**: HTTP health는 구현됐다. Dockerfile 자체 `HEALTHCHECK` 추가 여부는 runtime/Quadlet 구성 때 결정한다.
 
 ## 7. 생성·수정이 필요한 파일 목록
 
@@ -142,17 +142,17 @@ java -jar build/libs/*.jar
 | `Dockerfile` | 존재, Git 추적 | 테스트/헬스/CA 전략에 따라 후속 수정 | 코드 반영 완료/검증 필요 |
 | `.dockerignore` | 존재, Git 추적 | 비밀·로컬 파일 제외 상태 검증 | 코드 반영 완료/검증 필요 |
 | `src/main/resources/application.yml` | 존재, Git 추적 | 환경변수 매핑과 기본값 검증 | 코드 반영 완료/검증 필요 |
-| `build.gradle` | 존재 | Actuator 및 migration 의존성, 테스트 게이트 결정 | 결정 필요 |
-| `SecurityConfig.java` | 수정됨 | `/test/**` 허용 제거, `/api/v1/admin/**` 명시적 차단. health 허용은 추후 결정 | 코드 반영 완료/검증 필요 |
+| `build.gradle` | 수정됨 | Java 17 toolchain과 Actuator 적용. migration 의존성은 별도 결정 | health 반영·검증 완료 |
+| `SecurityConfig.java` | 수정됨 | `/test/**` 허용 제거, `/api/v1/admin/**` 명시적 차단, health 3개 경로 익명 허용 | health 반영·검증 완료 |
 | `AuthController.java` | 수정됨 | 전체 와일드카드 `@CrossOrigin` 제거 | 코드 반영 완료/검증 필요 |
 | `TestController.java` | 삭제됨 | 사용자·password 공개 조회와 평문 삽입 경로 제거 | 코드 반영 완료/검증 필요 |
 | `User.java` | 수정됨 | password가 JSON 응답으로 직렬화되지 않도록 write-only 처리 | 코드 반영 완료/검증 필요 |
 | `TrailController.java` | 수정됨 | 실제 역할 검증이 없던 동기화 관리 HTTP endpoint 제거 | 코드 반영 완료/검증 필요 |
 | `DurunubiApiService.java`, `TourApiService.java` | 수정됨 | 키 포함 전체 URL, raw 응답 일부, URL 포함 가능 예외 메시지 로그 제거 | 코드 반영 완료/검증 필요 |
 | `PilgrimageDataSeeder.java` | 수정됨 | 전체 seeder를 기본 비활성화하고 명시적 초기화 기동으로 전환 | 코드 반영 완료/검증 필요 |
-| health controller 또는 Actuator 설정 | 없음 | 민감 정보 없는 liveness/readiness 생성 | 권장, HTTP health 전 필수 |
+| Actuator health 설정 | 적용됨 | `/livez`는 앱 생존만, `/readyz`·`/healthz`는 DB 포함, 상세 비노출 | 반영·검증 완료 |
 | `src/main/resources/db/migration/**` | 없음 | 선택한 migration 도구의 baseline과 버전 migration 생성 | 운영 배포 전 필수 |
-| `src/test/**` | 디렉터리만 존재 | 컨텍스트, 인증, CORS, 저장소, 업로드, health 테스트 추가 | 배포 신뢰성 필수 |
+| `src/test/**` | 테스트 존재 | 21개 테스트 통과. DB down/readiness와 health 익명 접근·상세 비노출 포함 | 추가 통합 테스트는 후속 |
 | `application-prod.yml` | 없음 | 환경변수만으로 충분한지 검토 후 필요할 때만 생성 | 결정 필요 |
 | `render.yaml` | 없음 | Dashboard 설정을 유지할지 Blueprint로 코드화할지 결정 | 선택 |
 
@@ -306,9 +306,9 @@ DB 메타데이터와 실제 파일의 생명주기가 달라질 수 있으므�
 ### 확인된 사실
 
 - `spring-boot-starter-test`가 있고 JUnit Platform을 사용한다.
-- `src/test/java`, `src/test/resources` 디렉터리는 있지만 테스트 파일은 없다.
+- `src/test/java`에 health, 예외 처리, cache, upload, R2 등 테스트가 있다.
 - H2, Testcontainers, 별도 테스트 DB, 테스트 프로필이 없다.
-- 따라서 현재 `clean test` 성공은 시작, DB, 인증, CORS, 업로드를 검증하지 않는다.
+- 2026-09-07 Java 17에서 총 21개 테스트가 통과했다. 실제 PostgreSQL repository 통합 테스트는 아직 없다.
 
 ### 배포 전 최소 테스트
 
@@ -331,13 +331,14 @@ DB 메타데이터와 실제 파일의 생명주기가 달라질 수 있으므�
 - `/api/v1/pilgrimages` 같은 DB 조회 API는 DB smoke test로만 사용하고 liveness로 쓰지 않는다.
 - 관광·Kakao API 경로는 외부 장애의 영향을 받으므로 health path로 쓰지 않는다.
 
-### 현재 없는 것과 권장 목표
+### 구현된 health contract
 
-- Actuator 의존성, `/health`, `/actuator/health`, Docker `HEALTHCHECK`가 없다.
-- 민감한 상세를 반환하지 않는 `/actuator/health` 또는 `/health`를 구현한다.
-- liveness는 JVM/Spring 응답만 확인하고 readiness에 DB를 포함할지는 결정한다.
-- Render HTTP Health Check Path에는 5초 안에 2xx/3xx를 반환하는 전용 path만 설정한다.
-- 구현 전 첫 배포에서는 비즈니스 API를 health로 쓰지 않고 기본 TCP check를 사용한다.
+- `/livez`: 애플리케이션 생존만 확인하고 DB·Tour API·R2를 포함하지 않는다.
+- `/readyz`: 애플리케이션 readiness와 DB 연결을 확인한다. DB가 DOWN이면 HTTP 503이다.
+- `/healthz`: 외부 모니터용이며 `/readyz`와 같은 판정이다.
+- 세 endpoint 모두 인증 없이 접근 가능하지만 `status`만 반환하고 component/detail은 노출하지 않는다.
+- Render HTTP Health Check Path는 `/healthz`를 사용한다. Podman/EC2 process restart probe는 `/livez`를 사용한다.
+- 자동 테스트의 DB DOWN은 test health contributor로 장애 계약을 검증한 것이다. 실제 DB/network/Hikari 장애 검증은 운영 DB가 아닌 테스트 환경에서 연결을 차단한 뒤 `bash scripts/verify-health-endpoints.sh <base-url> db-down`으로 수행한다.
 
 ## 15. Render 설정 절차
 
@@ -438,8 +439,8 @@ DB 메타데이터와 실제 파일의 생명주기가 달라질 수 있으므�
 | 남은 보안 위험 | Kakao/OSRM 실패 로그에 정확한 좌표와 예외 메시지가 포함됨 | 사용자 위치정보가 로그에 남을 수 있음 | 별도 보안 로그 정리 승인 후 좌표·raw message 제거 |
 | 운영 차단 | migration 없이 `ddl-auto=update` | 재현 가능한 schema 배포·DB rollback 불가 | baseline migration과 `validate` 전환 |
 | 운영 차단 | 업로드가 무료 Render 임시 파일 시스템 | 재시작·유휴 종료·배포 때 파일 손실 | Supabase Storage 또는 유료 disk 선택 |
-| 품질 차단 | 테스트 파일과 테스트 DB가 없음 | `clean test`가 기능을 검증하지 않음 | 최소 테스트 스위트 추가 |
-| 관측성 공백 | 전용 health endpoint 없음 | 애플리케이션 readiness 판단 불가 | 구현 전 TCP, 이후 전용 health 추가 |
+| 부분 해결 | 단위·health 테스트는 있으나 실제 PostgreSQL 통합 테스트가 없음 | schema/query 호환성은 별도 smoke가 필요 | 별도 test DB 또는 Testcontainers 후속 검토 |
+| 해결 | Actuator 기반 전용 health endpoint 적용 | liveness와 DB readiness를 분리해 판단 가능 | Render `/healthz`, EC2 process probe `/livez` 사용 |
 
 모든 필수 환경변수가 없으면 Spring placeholder 해석 또는 bean 생성에서 시작이 실패한다. JWT secret 길이 문제는 시작 후 최초 JWT 사용 시 드러날 수 있다.
 
