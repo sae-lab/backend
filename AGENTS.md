@@ -102,7 +102,7 @@ Add or update tests for changes involving:
 
 ## Environment
 
-Backend secrets belong in `backend/.env`.
+Backend secrets belong in the repository-root `.env`.
 
 Use `.env.example` for documenting variable names.
 
