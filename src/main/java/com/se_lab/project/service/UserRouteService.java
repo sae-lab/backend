@@ -32,6 +32,9 @@ public interface UserRouteService {
     void addWaypoint(Long routeId, String authorEmail, String title, String memo,
                       double lat, double lng, MultipartFile photo);
 
+    /// 웨이포인트 하나를 지운다. 남은 것들의 번호는 1부터 다시 매겨진다.
+    void deleteWaypoint(Long routeId, String requesterEmail, int sequenceOrder);
+
     boolean toggleLike(Long routeId, String userEmail);
 
     boolean toggleScrap(Long routeId, String userEmail);

@@ -305,6 +305,32 @@ public class UserRouteServiceImpl implements UserRouteService {
 
     @Override
     @Transactional
+    public void deleteWaypoint(Long routeId, String requesterEmail, int sequenceOrder) {
+        UserRoute route = userRouteRepository.findById(routeId)
+                .orElseThrow(() -> new EntityNotFoundException("게시글을 찾을 수 없습니다: " + routeId));
+
+        User requester = findUser(requesterEmail);
+        if (!route.getAuthor().getId().equals(requester.getId())) {
+            throw new AccessDeniedException("본인이 작성한 게시글의 웨이포인트만 삭제할 수 있습니다.");
+        }
+
+        // orphanRemoval=true라 컬렉션에서 빼면 행도 함께 지워진다.
+        boolean removed = route.getWaypoints().removeIf(w -> w.getSequenceOrder() == sequenceOrder);
+        if (!removed) {
+            throw new EntityNotFoundException("웨이포인트를 찾을 수 없습니다: " + sequenceOrder);
+        }
+
+        // 중간 것을 지우면 번호가 1, 3, 4처럼 비므로 1부터 다시 매긴다.
+        int seq = 1;
+        for (UserRouteWaypoint waypoint : route.getWaypoints()) {
+            waypoint.renumber(seq++);
+        }
+        // 업로드된 사진 파일 자체는 지우지 않는다. 댓글·좋아요를 지울 때도
+        // 파일 정리는 하지 않는 기존 방식을 따른다.
+    }
+
+    @Override
+    @Transactional
     public boolean toggleLike(Long routeId, String userEmail) {
         UserRoute route = userRouteRepository.findById(routeId)
                 .orElseThrow(() -> new EntityNotFoundException("게시글을 찾을 수 없습니다: " + routeId));
