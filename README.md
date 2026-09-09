@@ -146,6 +146,19 @@ R2를 설정할 때만 `STORAGE_TYPE=r2`를 지정합니다. R2 구현에는 `R2
 
 애플리케이션을 시작하기 전에 필수 환경변수를 설정하고 PostgreSQL에 연결할 수 있는지 확인하세요. `PORT`가 제공되지 않으면 기본 HTTP 포트는 `8080`입니다.
 
+### 로컬 컨테이너 실행
+
+Docker Compose는 로컬에서 Dockerfile과 같은 이미지를 검증하는 용도입니다. 먼저 `.env.example`을 `.env`로 복사해 필요한 값만 채운 뒤 실행합니다.
+
+```bash
+docker compose config
+docker compose up --build
+```
+
+기본 주소는 `http://localhost:8080`이며, 호스트 포트가 이미 사용 중이면 `HOST_PORT=8081 docker compose up --build`처럼 바꿀 수 있습니다. 로컬 업로드 파일은 `local_uploads` named volume에 유지하며 `docker compose down -v`를 실행할 때만 함께 삭제됩니다.
+
+`compose.yaml`에는 비밀값이나 Render/AWS 전용 설정을 넣지 않습니다. Render 개발 배포는 이 저장소의 Dockerfile을 직접 빌드하고 Render가 주입한 환경변수(특히 `PORT`)를 사용합니다. AWS 운영 배포는 `docs/AWS_PRODUCTION_MIGRATION_PLAN.md`의 Podman Quadlet·Nginx 구성으로 이미지와 환경 파일을 별도로 주입합니다.
+
 ### 테스트 실행
 
 ```bash
