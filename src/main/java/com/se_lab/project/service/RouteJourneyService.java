@@ -15,6 +15,9 @@ public interface RouteJourneyService {
     // 진행 중인 여정이 없으면 null
     RouteJourneyDetailDto getActiveJourney(String userEmail);
 
+    /// 지난 여정 하나를 자세히 본다. 진행 중이든 끝났든 본인 것이면 볼 수 있다.
+    RouteJourneyDetailDto getJourney(String userEmail, Long journeyId);
+
     RouteJourneyDetailDto ping(String userEmail, Long journeyId, double lat, double lng);
 
     RouteJourneyDetailDto abandonJourney(String userEmail, Long journeyId);

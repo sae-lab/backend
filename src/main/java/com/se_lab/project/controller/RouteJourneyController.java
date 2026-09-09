@@ -111,6 +111,20 @@ public class RouteJourneyController {
         }
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getJourney(@PathVariable Long id) {
+        String email = AuthUtil.requireLoggedIn();
+        if (email == null) return unauthorized();
+
+        try {
+            return ResponseEntity.ok(routeJourneyService.getJourney(email, id));
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(403).body(Map.of("message", e.getMessage()));
+        }
+    }
+
     @GetMapping("/history")
     public ResponseEntity<?> getHistory() {
         String email = AuthUtil.requireLoggedIn();
