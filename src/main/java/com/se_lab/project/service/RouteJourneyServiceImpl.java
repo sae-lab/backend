@@ -212,6 +212,13 @@ public class RouteJourneyServiceImpl implements RouteJourneyService {
     }
 
     @Override
+    public RouteJourneyDetailDto getJourney(String userEmail, Long journeyId) {
+        User user = findUser(userEmail);
+        // 남의 여정은 볼 수 없다. findOwnedJourney가 소유자 검사를 한다.
+        return toDetailDto(findOwnedJourney(journeyId, user));
+    }
+
+    @Override
     @Transactional
     public RouteJourneyDetailDto abandonJourney(String userEmail, Long journeyId) {
         User user = findUser(userEmail);
