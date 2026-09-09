@@ -7,6 +7,7 @@ import com.se_lab.project.dto.PilgrimageRouteSummaryDto;
 import com.se_lab.project.dto.PilgrimageSegmentDto;
 import com.se_lab.project.entity.PilgrimageRoute;
 import com.se_lab.project.entity.PilgrimageSegment;
+import com.se_lab.project.global.KoreanParticle;
 import com.se_lab.project.repository.PilgrimageRouteRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,14 @@ public class PilgrimageServiceImpl implements PilgrimageService {
     private static final Logger logger = LoggerFactory.getLogger(PilgrimageServiceImpl.class);
     private static final int WAYPOINTS_PER_SEGMENT = 10;
     private static final double WALKING_SPEED_KMH = 4.0;
+
+    /// 기준 경로에서 이만큼 넘게 떨어진 곳은 경유 스팟으로 치지 않는다.
+    /// Tour API를 반경 10km로 긁어오다 보니 경로와 무관한 곳까지 섞여 들어왔다.
+    private static final double MAX_SPOT_DETOUR_KM = 3.0;
+
+    /// 경로를 다시 그릴 때 실제로 들를 스팟 수. 다리마다 외부 API를 부르므로
+    /// 늘릴수록 상세 조회가 느려진다.
+    private static final int MAX_ROUTED_SPOTS = 6;
 
     private final PilgrimageRouteRepository pilgrimageRouteRepository;
     private final TourApiService tourApiService;
@@ -75,7 +84,10 @@ public class PilgrimageServiceImpl implements PilgrimageService {
 
         PilgrimageRoute route = PilgrimageRoute.builder()
                 .name(chain.get(0).name() + "-" + chain.get(chain.size() - 1).name() + " 자동 생성 순례길")
-                .description(chain.stream().map(GangwonCity::name).collect(Collectors.joining(" → ")) + "를 잇는 자동 생성 구간 코스")
+                // 마지막 도시 받침에 따라 을/를이 갈린다. 하나로 고정하면 "삼척를"이 된다.
+                .description(chain.stream().map(GangwonCity::name).collect(Collectors.joining(" → "))
+                        + KoreanParticle.objective(chain.get(chain.size() - 1).name())
+                        + " 잇는 자동 생성 구간 코스")
                 .category(category)
                 .build();
 
@@ -107,7 +119,21 @@ public class PilgrimageServiceImpl implements PilgrimageService {
     }
 
     private PilgrimageSegmentDto toSegmentDto(PilgrimageSegment segment, String category) {
-        List<Coordinate> path = routePath(segment);
+        // 1) 스팟을 찾기 위한 기준선. 도시 A -> B를 잇는 경로다.
+        List<Coordinate> referencePath = routePath(segment);
+
+        // 2) 기준선에서 멀리 떨어진 곳은 걸러낸다. 반경 10km로 긁어오다 보니
+        //    경로와 상관없는 곳까지 "경유 스팟"으로 들어왔었다.
+        List<BasePlaceDto> spots = findSpotsAlongSegment(segment, category, referencePath).stream()
+                .filter(spot -> distanceToPathKm(spot, referencePath) <= MAX_SPOT_DETOUR_KM)
+                .collect(Collectors.toList());
+
+        // 3) 출발지에서 도착지 방향으로 지나는 순서대로 줄 세운다.
+        spots = orderAlongPath(spots, referencePath);
+
+        // 4) 그 스팟들을 실제로 지나는 경로를 다시 그린다. 이걸 안 하면 선은
+        //    도시끼리만 잇고 스팟은 선 밖에 떠 있어서, 경유지처럼 보이지 않는다.
+        List<Coordinate> path = routeThroughSpots(segment, spots, referencePath);
 
         return PilgrimageSegmentDto.builder()
                 .sequenceOrder(segment.getSequenceOrder())
@@ -120,9 +146,83 @@ public class PilgrimageServiceImpl implements PilgrimageService {
                 .distanceKm(segment.getDistanceKm())
                 .difficulty(segment.getDifficulty())
                 .estimatedMinutes(segment.getEstimatedMinutes())
-                .spots(findSpotsAlongSegment(segment, category, path))
+                .spots(spots)
                 .path(path)
                 .build();
+    }
+
+    /// 스팟이 기준 경로에서 얼마나 벗어나 있는지. 경로 위 점들과의 최단 거리로 잰다.
+    private double distanceToPathKm(BasePlaceDto spot, List<Coordinate> path) {
+        double min = Double.MAX_VALUE;
+        for (Coordinate point : path) {
+            double d = GeoUtils.distanceKm(spot.getLatitude(), spot.getLongitude(), point.getLat(), point.getLng());
+            if (d < min) min = d;
+        }
+        return min;
+    }
+
+    /// 출발지에서 도착지로 가면서 만나는 순서대로 스팟을 정렬한다.
+    ///
+    /// 경로 위에서 가장 가까운 점이 몇 번째인지를 기준으로 삼는다. 이 순서가
+    /// 곧 경로를 다시 그릴 때 들르는 순서가 되므로, 뒤죽박죽이면 길이 지그재그가 된다.
+    private List<BasePlaceDto> orderAlongPath(List<BasePlaceDto> spots, List<Coordinate> path) {
+        if (spots.size() < 2 || path.isEmpty()) return spots;
+
+        return spots.stream()
+                .sorted(java.util.Comparator.comparingInt(spot -> nearestPathIndex(spot, path)))
+                .collect(Collectors.toList());
+    }
+
+    private int nearestPathIndex(BasePlaceDto spot, List<Coordinate> path) {
+        int bestIndex = 0;
+        double best = Double.MAX_VALUE;
+        for (int i = 0; i < path.size(); i++) {
+            Coordinate point = path.get(i);
+            double d = GeoUtils.distanceKm(spot.getLatitude(), spot.getLongitude(), point.getLat(), point.getLng());
+            if (d < best) {
+                best = d;
+                bestIndex = i;
+            }
+        }
+        return bestIndex;
+    }
+
+    /// 출발지 -> 스팟들 -> 도착지를 차례로 이어 실제 도보 경로를 만든다.
+    ///
+    /// 다리(leg)마다 외부 경로 API를 부르므로 스팟이 많으면 그만큼 느려진다.
+    /// 그래서 경유할 스팟 수를 제한하고, 넘치면 기준 경로를 그대로 쓴다.
+    /// 한 다리라도 실패하면 그 구간만 직선으로 잇는다.
+    private List<Coordinate> routeThroughSpots(PilgrimageSegment segment,
+                                               List<BasePlaceDto> spots,
+                                               List<Coordinate> referencePath) {
+        if (spots.isEmpty()) return referencePath;
+
+        List<BasePlaceDto> viaSpots = spots.size() > MAX_ROUTED_SPOTS
+                ? spots.subList(0, MAX_ROUTED_SPOTS)
+                : spots;
+
+        List<Coordinate> stops = new java.util.ArrayList<>();
+        stops.add(Coordinate.builder().lat(segment.getFromLat()).lng(segment.getFromLng()).build());
+        viaSpots.forEach(s -> stops.add(
+                Coordinate.builder().lat(s.getLatitude()).lng(s.getLongitude()).build()));
+        stops.add(Coordinate.builder().lat(segment.getToLat()).lng(segment.getToLng()).build());
+
+        List<Coordinate> path = new java.util.ArrayList<>();
+        for (int i = 0; i < stops.size() - 1; i++) {
+            Coordinate from = stops.get(i);
+            Coordinate to = stops.get(i + 1);
+
+            List<Coordinate> leg = osrmWalkingDirectionsService.getWalkingPath(
+                    from.getLat(), from.getLng(), to.getLat(), to.getLng());
+
+            if (leg.isEmpty()) {
+                path.add(from);
+                path.add(to);
+            } else {
+                path.addAll(leg);
+            }
+        }
+        return path;
     }
 
     private List<Coordinate> routePath(PilgrimageSegment segment) {

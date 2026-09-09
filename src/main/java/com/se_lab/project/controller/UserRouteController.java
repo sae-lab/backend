@@ -102,6 +102,18 @@ public class UserRouteController {
         }
     }
 
+    @DeleteMapping("/{id}/waypoints/{sequenceOrder}")
+    public ResponseEntity<?> deleteWaypoint(@PathVariable Long id, @PathVariable int sequenceOrder) {
+        try {
+            userRouteService.deleteWaypoint(id, currentUserEmail(), sequenceOrder);
+            return ResponseEntity.ok().build();
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(403).body(Map.of("message", e.getMessage()));
+        }
+    }
+
     @PostMapping("/{id}/like")
     public ResponseEntity<?> toggleLike(@PathVariable Long id) {
         try {
