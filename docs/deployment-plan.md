@@ -127,6 +127,7 @@ java -jar build/libs/*.jar
 
 - **구현 완료**: `.github/workflows/container-package.yml`은 `dev`·`main` 대상 pull request/push와 수동 실행에서 Java 17 `clean test bootJar`, Docker image build, PostgreSQL 서비스 연결 컨테이너 기동을 수행한다.
 - **구현 완료**: 컨테이너의 `/readyz`가 UP이 될 때까지 기다린 뒤 `scripts/verify-health-endpoints.sh`로 `/livez`, `/readyz`, `/healthz`가 각각 HTTP 200과 `UP`을 반환하는지 확인한다. `main` push에서는 검증 통과 후 GHCR에 이미지를 게시한다.
+- **구현 완료**: 수동 실행은 `dev` history에 포함된 소문자 40자리 `candidate_sha`를 검증한 뒤 `ghcr.io/sae-lab/backend:<candidate_sha>`만 게시하고 `:main`이나 EC2 배포를 변경하지 않는다. 기존 SHA tag가 있으면 덮어쓰지 않으며, 해당 SHA가 `main`으로 승격되면 기존 image를 재사용해 `:main`만 갱신한다. registry 조회 실패나 image provenance label 불일치는 안전하게 실패한다.
 - **아직 미검증**: 저장소 파일만으로는 특정 GitHub Actions 실행의 성공 여부를 확인할 수 없다.
 - **실제 운영에서 별도 확인**: Render의 HTTP health check 설정, 실제 DB·외부 API·R2 연결과 rollback은 이 workflow의 placeholder 환경 검증을 대체하지 않는다.
 

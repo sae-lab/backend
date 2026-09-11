@@ -10,7 +10,7 @@
 - `dev`와 `feature/*` branch를 사용한 이력이 있지만, `CONTRIBUTING.md`나 별도의 release 규칙은 없다.
 - 원격 저장소에는 Git tag와 GitHub Release가 없다.
 - 원격 `main`의 GitHub Actions에는 PR review 자동화만 있으며 build, test, container publish, tag, GitHub Release 자동화는 없다.
-- 작업 중인 `.github/workflows/container-package.yml`은 아직 Git에 추적되지 않아 GitHub에서 실행 중인 workflow가 아니다. 현재 내용대로 반영한다면 `dev`와 `main`에서 검증하고, `main` push에서만 GHCR image를 commit SHA와 `main` tag로 게시한다.
+- `.github/workflows/container-package.yml`은 `dev`와 `main`에서 검증하고, `main` push에서 GHCR image를 commit SHA와 `main` tag로 게시하도록 구성한다. 수동 실행은 `dev` history에 포함된 지정 SHA를 EC2 사전 검증용 candidate image로 게시한다.
 
 따라서 아래 내용은 기존 자동화의 설명이 아니라 앞으로 적용할 단순한 운영 규칙이다.
 
@@ -58,12 +58,14 @@ GitHub Release는 version tag를 사람이 읽을 수 있는 release note와 함
 
 ## 현재 CI/CD와의 관계
 
-현재 작업 중인 container workflow는 branch push만 감지하며 Git tag push는 감지하지 않는다. 또한 GitHub Release를 만들거나 `v0.1.0` 같은 version으로 container image를 게시하지 않는다. 그러므로 이 문서의 tag와 GitHub Release 절차는 현재로서는 수동 절차다.
+container workflow는 branch push와 수동 실행을 감지하지만 Git tag push는 감지하지 않는다. 또한 GitHub Release를 만들거나 `v0.1.0` 같은 version으로 container image를 게시하지 않는다. 그러므로 이 문서의 tag와 GitHub Release 절차는 현재로서는 수동 절차다.
 
 workflow가 반영된 뒤 `main`에 push되면 다음 image가 만들어지는 구조다.
 
 - `ghcr.io/sae-lab/backend:<commit SHA>`: 변경되지 않는 배포·rollback 기준
 - `ghcr.io/sae-lab/backend:main`: 최신 `main`을 가리키는 변경 가능한 편의 tag
+
+`workflow_dispatch`에서는 `dev` history에 포함된 소문자 40자리 commit SHA를 지정해 같은 immutable SHA tag를 candidate로 게시할 수 있다. 동일 SHA tag가 이미 있으면 수동 게시를 거부하고, 그 SHA가 나중에 `main`으로 승격되면 image를 다시 만들거나 SHA tag를 덮어쓰지 않고 기존 manifest를 `:main`에 연결한다. registry 상태를 확실히 확인할 수 없거나 기존 image의 revision/source label이 예상과 다르면 안전하게 실패한다.
 
 release note에는 실제 배포한 commit SHA와 image tag를 함께 기록한다. rollback에는 `main`이 아니라 commit SHA image를 사용한다. Git version tag를 추가해도 현재 workflow가 다시 실행되거나 같은 이름의 container tag를 자동 생성하지 않는다는 점에 주의한다.
 
