@@ -75,6 +75,9 @@ application-*.local.yml
 .env.*
 !.env.example
 
+# EC2 production environment file (the committed .example remains allowed)
+/deployment/env/production.env
+
 # IntelliJ HTTP Client의 개인 테스트 계정·비밀번호와 로컬 테스트 이미지
 http-client.private.env.json
 http-client.private/
