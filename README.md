@@ -148,14 +148,23 @@ R2를 설정할 때만 `STORAGE_TYPE=r2`를 지정합니다. R2 구현에는 `R2
 
 ### 로컬 컨테이너 실행
 
-Docker Compose는 로컬에서 Dockerfile과 같은 이미지를 검증하는 용도입니다. 먼저 `.env.example`을 `.env`로 복사해 필요한 값만 채운 뒤 실행합니다.
+Compose는 로컬에서 Dockerfile과 같은 이미지를 검증하는 용도입니다. 먼저 `.env.example`을 `.env`로 복사해 외부 API 키와 JWT secret 등 필요한 값을 채웁니다. Compose는 로컬 PostgreSQL 16 컨테이너를 함께 실행하고 backend의 `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`를 해당 컨테이너용 값으로 덮어씁니다. 따라서 `.env.example`의 `localhost` DB URL은 `./gradlew bootRun`처럼 호스트에서 앱을 직접 실행할 때만 사용됩니다.
+
+Docker Compose를 사용하는 환경:
 
 ```bash
 docker compose config
 docker compose up --build
 ```
 
-기본 주소는 `http://localhost:8080`이며, 호스트 포트가 이미 사용 중이면 `HOST_PORT=8081 docker compose up --build`처럼 바꿀 수 있습니다. 로컬 업로드 파일은 `local_uploads` named volume에 유지하며 `docker compose down -v`를 실행할 때만 함께 삭제됩니다.
+Podman Compose를 사용하는 공유 Fedora 환경:
+
+```bash
+podman-compose config
+podman-compose up --build
+```
+
+기본 주소는 `http://localhost:8080`이며, 호스트 포트가 이미 사용 중이면 `HOST_PORT=8081 podman-compose up --build`처럼 바꿀 수 있습니다. 로컬 업로드 파일과 PostgreSQL 데이터는 각각 `local_uploads`, `database_data` named volume에 유지됩니다. `docker compose down -v` 또는 `podman-compose down -v`를 실행하면 두 volume이 모두 삭제되므로 필요한 로컬 데이터가 없을 때만 사용합니다.
 
 `compose.yaml`에는 비밀값이나 Render/AWS 전용 설정을 넣지 않습니다. Render 개발 배포는 이 저장소의 Dockerfile을 직접 빌드하고 Render가 주입한 환경변수(특히 `PORT`)를 사용합니다. AWS 운영 배포는 `docs/AWS_PRODUCTION_MIGRATION_PLAN.md`의 Podman Quadlet·Nginx 구성으로 이미지와 환경 파일을 별도로 주입합니다.
 

@@ -19,7 +19,8 @@ FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 
 RUN groupadd --system spring \
-    && useradd --system --gid spring spring
+    && useradd --system --gid spring spring \
+    && install -d -o spring -g spring /tmp/uploads
 
 COPY --from=build --chown=spring:spring /workspace/build/libs/app.jar /app/app.jar
 
