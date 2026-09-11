@@ -14,7 +14,7 @@
 - image: `sightseeing-backend-prod:health-check`, 344,727,884 bytes, runtime user `spring`
 - runtime: 1536 MiB memory limit, `JPA_DDL_AUTO=validate`, seeder disabled로 기동
 - health: `/livez`, `/readyz`, `/healthz` 모두 HTTP 200/`UP`; simulated DB health DOWN 시 readiness/healthz 503, livez 200 검증. 실제 DB/network 장애 주입은 아직 수행하지 않음
-- package pipeline: PR/`dev`는 Java 17 test와 container build, `main` push는 `ghcr.io/sae-lab/backend:<commit-sha>`와 `:main` 발행
+- package pipeline: PR/`dev`는 Java 17 test와 container build, 수동 실행은 `dev` history의 지정 SHA를 immutable GHCR candidate로 발행, `main` push는 해당 SHA image와 mutable `:main` 발행. 이미 candidate로 발행된 SHA는 재빌드하지 않고 `main` 승격 시 그대로 재사용
 - 아직 수행하지 않음: ECR/AWS 생성, GitHub Actions, EC2 배포, 실제 DB 장애 주입, 부하/RSS 측정
 
 ## 검증 기록 (2026-09-06)

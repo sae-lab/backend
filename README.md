@@ -219,7 +219,7 @@ PostgreSQL은 Spring Data JPA와 Hibernate를 통해 접근합니다. 기본 Hib
 
 포함된 `Dockerfile`은 Java 17 JDK build stage와 Java 17 JRE runtime stage를 사용합니다. `app.jar`를 빌드하고 비루트 `spring` 사용자로 실행하며 포트 `8080`을 노출합니다. runtime에서 애플리케이션은 `PORT`를 읽고, 값이 없으면 기본값 `8080`을 사용합니다.
 
-Dockerfile 자체에는 `HEALTHCHECK`가 없지만, 애플리케이션에는 인증 없이 사용할 수 있는 `/livez`, `/readyz`, `/healthz` health endpoint가 있습니다. `compose.yaml`은 Dockerfile과 named volume을 사용하는 로컬 컨테이너 실행 구성을 제공합니다. `.github/workflows/container-package.yml`은 Java 17 테스트·JAR 패키징, 이미지 빌드, PostgreSQL을 연결한 컨테이너 기동, `/readyz` 및 세 health endpoint 검증을 수행합니다. 이 workflow는 `main` push에서 validation 통과 후 이미지를 GHCR에 게시하지만 Render 배포까지 수행하지는 않습니다.
+Dockerfile 자체에는 `HEALTHCHECK`가 없지만, 애플리케이션에는 인증 없이 사용할 수 있는 `/livez`, `/readyz`, `/healthz` health endpoint가 있습니다. `compose.yaml`은 Dockerfile과 named volume을 사용하는 로컬 컨테이너 실행 구성을 제공합니다. `.github/workflows/container-package.yml`은 Java 17 테스트·JAR 패키징, 이미지 빌드, PostgreSQL을 연결한 컨테이너 기동, `/readyz` 및 세 health endpoint 검증을 수행합니다. 이 workflow는 `main` push에서 validation 통과 후 이미지를 GHCR에 게시합니다. 수동 실행에서는 `dev` history에 포함된 소문자 40자리 `candidate_sha`만 받아 `ghcr.io/sae-lab/backend:<candidate_sha>`를 게시하며 `:main`은 변경하지 않습니다. 이미 존재하는 SHA tag는 다시 게시하지 않고, 같은 SHA가 `main`으로 승격되면 기존 image를 재사용해 mutable `:main` tag만 갱신합니다. 어느 경로도 Render 또는 EC2 배포를 수행하지 않습니다.
 
 ## 테스트
 
