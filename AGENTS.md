@@ -81,6 +81,23 @@ When modifying integrations:
 
 Run backend validation using Java 17.
 
+### Current shared host environment (2026-09)
+
+- The shared development host is Fedora 44 with Podman and `podman-compose`; Docker CLI is not installed.
+- The host default is OpenJDK 25. Gradle Wrapper 8.14 cannot run on that JVM (`Unsupported class file major version 69`), so do not diagnose that error as an application failure.
+- `java-17-openjdk-devel` is not available from the host's currently enabled Fedora repositories. Run Gradle validation in the project's Java 17 container instead:
+
+  ```bash
+  podman run --rm \
+    -v "$PWD:/workspace:Z" \
+    -v backend-gradle-cache:/root/.gradle:Z \
+    -w /workspace \
+    eclipse-temurin:17-jdk-jammy \
+    ./gradlew --no-daemon test
+  ```
+
+- The user has previously run `./gradlew test`, `./gradlew bootRun`, and `./gradlew clean bootJar` successfully in their local setup. Treat that as historical context only: record the active Java version and execute the relevant command again before reporting a current validation result.
+
 Preferred checks:
 
 `./gradlew test`

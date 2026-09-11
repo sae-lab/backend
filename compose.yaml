@@ -1,0 +1,23 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    env_file:
+      - .env
+    environment:
+      # The image defaults to /tmp/uploads. Keep local Compose uploads between
+      # container recreations without making that path part of the image.
+      FILE_UPLOAD_DIR: /tmp/uploads
+      # Render supplies its own PORT and AWS binds the container through
+      # Podman Quadlet. Compose is intentionally a local-only entry point.
+      PORT: "8080"
+    ports:
+      - "${HOST_PORT:-8080}:8080"
+    volumes:
+      - local_uploads:/tmp/uploads
+    restart: unless-stopped
+
+volumes:
+  local_uploads:
