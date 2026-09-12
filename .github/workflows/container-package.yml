@@ -254,11 +254,20 @@ jobs:
             echo "Unable to resolve the existing immutable image digest" >&2
             exit 1
           fi
+          expected_digest="${immutable_ref##*@}"
 
           source_manifest="$(docker buildx imagetools inspect --raw "${immutable_ref}")"
           docker buildx imagetools create \
+            --prefer-index=false \
             --tag "${IMAGE}:main" \
             "${immutable_ref}"
+          main_digest="$(docker buildx imagetools inspect \
+            --format '{{json .Manifest}}' \
+            "${IMAGE}:main" | jq -r '.digest')"
+          if [[ "${main_digest}" != "${expected_digest}" ]]; then
+            echo "The promoted main tag does not resolve to the immutable image digest" >&2
+            exit 1
+          fi
           main_manifest="$(docker buildx imagetools inspect --raw "${IMAGE}:main")"
           if [[ "${main_manifest}" != "${source_manifest}" ]]; then
             echo "The promoted main tag does not match the immutable image manifest" >&2
