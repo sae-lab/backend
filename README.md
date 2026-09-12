@@ -146,13 +146,35 @@ R2를 설정할 때만 `STORAGE_TYPE=r2`를 지정합니다. R2 구현에는 `R2
 
 애플리케이션을 시작하기 전에 필수 환경변수를 설정하고 PostgreSQL에 연결할 수 있는지 확인하세요. `PORT`가 제공되지 않으면 기본 HTTP 포트는 `8080`입니다.
 
+### 로컬 컨테이너 실행
+
+Compose는 로컬에서 Dockerfile과 같은 이미지를 검증하는 용도입니다. 먼저 `.env.example`을 `.env`로 복사해 외부 API 키와 JWT secret 등 필요한 값을 채웁니다. Compose는 로컬 PostgreSQL 16 컨테이너를 함께 실행하고 backend의 `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`를 해당 컨테이너용 값으로 덮어씁니다. 따라서 `.env.example`의 `localhost` DB URL은 `./gradlew bootRun`처럼 호스트에서 앱을 직접 실행할 때만 사용됩니다.
+
+Docker Compose를 사용하는 환경:
+
+```bash
+docker compose config
+docker compose up --build
+```
+
+Podman Compose를 사용하는 공유 Fedora 환경:
+
+```bash
+podman-compose config
+podman-compose up --build
+```
+
+기본 주소는 `http://localhost:8080`이며, 호스트 포트가 이미 사용 중이면 `HOST_PORT=8081 podman-compose up --build`처럼 바꿀 수 있습니다. 로컬 업로드 파일과 PostgreSQL 데이터는 각각 `local_uploads`, `database_data` named volume에 유지됩니다. `docker compose down -v` 또는 `podman-compose down -v`를 실행하면 두 volume이 모두 삭제되므로 필요한 로컬 데이터가 없을 때만 사용합니다.
+
+`compose.yaml`에는 비밀값이나 Render/AWS 전용 설정을 넣지 않습니다. Render 개발 배포는 이 저장소의 Dockerfile을 직접 빌드하고 Render가 주입한 환경변수(특히 `PORT`)를 사용합니다. AWS 운영 배포는 `docs/AWS_PRODUCTION_MIGRATION_PLAN.md`의 Podman Quadlet·Nginx 구성으로 이미지와 환경 파일을 별도로 주입합니다.
+
 ### 테스트 실행
 
 ```bash
 ./gradlew test
 ```
 
-현재 테스트는 예외 응답, 이미지 검증, local/R2 저장소 동작, tourism-image URL 정규화에 집중되어 있습니다. 완전한 통합 또는 배포 테스트 모음은 아닙니다.
+현재 테스트는 예외 응답, 이미지 검증, local/R2 저장소 동작, tourism-image URL 정규화, health endpoint와 DB health indicator 등에 대한 집중된 테스트입니다. 완전한 통합 또는 배포 테스트 모음은 아닙니다.
 
 ### 빌드
 
@@ -197,30 +219,41 @@ PostgreSQL은 Spring Data JPA와 Hibernate를 통해 접근합니다. 기본 Hib
 
 포함된 `Dockerfile`은 Java 17 JDK build stage와 Java 17 JRE runtime stage를 사용합니다. `app.jar`를 빌드하고 비루트 `spring` 사용자로 실행하며 포트 `8080`을 노출합니다. runtime에서 애플리케이션은 `PORT`를 읽고, 값이 없으면 기본값 `8080`을 사용합니다.
 
-현재 repository에는 Docker Compose 또는 Docker `HEALTHCHECK`가 포함되어 있지 않습니다.
+Dockerfile 자체에는 `HEALTHCHECK`가 없지만, 애플리케이션에는 인증 없이 사용할 수 있는 `/livez`, `/readyz`, `/healthz` health endpoint가 있습니다. `compose.yaml`은 Dockerfile과 named volume을 사용하는 로컬 컨테이너 실행 구성을 제공합니다. `.github/workflows/container-package.yml`은 Java 17 테스트·JAR 패키징, 이미지 빌드, PostgreSQL을 연결한 컨테이너 기동, `/readyz` 및 세 health endpoint 검증을 수행합니다. 이 workflow는 `main` push에서 validation 통과 후 이미지를 GHCR에 게시합니다. 수동 실행에서는 `dev` history에 포함된 소문자 40자리 `candidate_sha`만 받아 `ghcr.io/sae-lab/backend:<candidate_sha>`를 게시하며 `:main`은 변경하지 않습니다. 이미 존재하는 SHA tag는 다시 게시하지 않고, 같은 SHA가 `main`으로 승격되면 기존 image를 재사용해 mutable `:main` tag만 갱신합니다. 어느 경로도 Render 또는 EC2 배포를 수행하지 않습니다.
 
 ## 테스트
 
-자동화된 테스트 범위는 저장소, 이미지 검증, URL 정규화, API 예외 처리에 대한 집중된 테스트로 제한됩니다. 이 문서는 포괄적인 coverage, end-to-end 검증, 배포 환경에서의 성공적인 실행을 주장하지 않습니다.
+자동화된 테스트 범위는 저장소, 이미지 검증, URL 정규화, API 예외 처리, health endpoint와 DB health indicator에 대한 집중된 테스트로 제한됩니다. 이 문서는 포괄적인 coverage, end-to-end 검증, 배포 환경에서의 성공적인 실행을 주장하지 않습니다.
 
 ## 배포 상태
 
 repository에는 Docker build 구성과 환경변수 기반 애플리케이션 설정이 포함되어 있습니다. 실제 Render 배포 상태는 repository 내부 근거가 아니라 외부 배포 서비스에서 관리·검증됩니다. 운영 환경 구성과 rollback 절차는 별도 배포 설정에서 관리합니다.
 
-다음 운영 항목은 현재 구현되었거나 완료된 것으로 확인되지 않았습니다.
+### 구현 완료 (repository 기준)
 
-- GitHub Actions CI/CD workflow
-- Database migrations (Flyway/Liquibase)
-- 전용 애플리케이션 health endpoint
-- Docker `HEALTHCHECK`
-- `render.yaml` Blueprint
-- Production deployment validation, 데이터베이스 연결, R2 bucket 접근, rollback 검증
+- GitHub Actions의 테스트·컨테이너 validation workflow (`.github/workflows/container-package.yml`)
+- `/livez`(애플리케이션 생존), `/readyz`·`/healthz`(DB readiness 포함) endpoint와 endpoint 검증 스크립트
+- 로컬 Docker Compose 구성 (`compose.yaml`)
+
+### 아직 미검증
+
+- Gradle test와 실제 컨테이너 기동의 성공 결과, GitHub Actions workflow의 실제 성공 run은 저장소 파일만으로 확인할 수 없습니다.
+
+### 아직 구현되지 않음
+
+- Dockerfile 자체 `HEALTHCHECK`, Database migrations (Flyway/Liquibase), `render.yaml` Blueprint
+
+### 실제 운영에서 별도 확인 필요
+
+- Render 배포 및 `/healthz` HTTP health check 설정
+- Supabase 연결·SSL·스키마, R2 bucket 접근, CORS, 외부 API quota, 업로드 영속성, rollback
 
 `docs/deployment-plan.md`는 계획 문서이며, production 구성 또는 Supabase deployment 완료를 단독으로 검증하는 근거가 아닙니다.
 
 ## 관련 문서
 
 - [`docs/deployment-plan.md`](docs/deployment-plan.md): deployment 준비 및 검증 계획입니다. 아직 구현되지 않았을 수 있는 계획 작업과 결정을 포함합니다.
+- [`docs/release-process.md`](docs/release-process.md): branch 역할, version tag, GitHub Release 및 hotfix의 최소 운영 규칙입니다.
 - [`docs/features/LAB-12-route-planner.md`](docs/features/LAB-12-route-planner.md): route-planner 기능에 한정된 초기 메모입니다.
 - [`docs/api-spec.md`](docs/api-spec.md): 현재 비어 있으며 완성된 API 명세가 아닙니다.
 - [`.env.example`](.env.example): secret이 없는 로컬 환경변수 template입니다.
@@ -228,13 +261,14 @@ repository에는 Docker build 구성과 환경변수 기반 애플리케이션 �
 ## 현재 제한사항 / 개발 상태
 
 - database migration framework가 구성되어 있지 않습니다.
-- CI/CD workflow가 없습니다.
-- 전용 health endpoint가 없습니다.
-- 자동화된 테스트는 제한된 범위의 unit-level 항목만 다룹니다.
+- 컨테이너 validation workflow는 있지만 Render까지 배포하는 CI/CD는 없습니다.
+- 애플리케이션 health endpoint는 구현되어 있으나 실제 운영 환경의 응답은 별도 확인이 필요합니다.
+- Dockerfile 자체 `HEALTHCHECK`는 없습니다.
+- 자동화된 애플리케이션 테스트는 제한된 범위의 unit-level 항목을 다루며, 별도 workflow가 컨테이너 기동·health smoke test를 수행합니다.
 - R2 코드는 존재하지만 실제 Cloudflare R2 환경에서의 검증 여부는 확인되지 않았습니다.
 
 ## 기여하기
 
-`CONTRIBUTING.md`는 아직 추가되지 않았으므로, 공식 기여, branch, review, merge, release 규칙은 이 repository에 정의되어 있지 않습니다. 이 README는 추가 기여 규칙을 정의하지 않습니다.
+`CONTRIBUTING.md`는 아직 추가되지 않았습니다. 최소 branch 및 release 규칙은 [`docs/release-process.md`](docs/release-process.md)를 따르며, 그 밖의 공식 기여와 review 규칙은 아직 정의되어 있지 않습니다.
 
 ---

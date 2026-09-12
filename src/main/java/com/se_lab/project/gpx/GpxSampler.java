@@ -1,6 +1,6 @@
 package com.se_lab.project.gpx;
 
-import com.se_lab.project.dto.GpxPoint;
+import com.se_lab.project.dto.GpxPointDto;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -10,9 +10,9 @@ import java.util.List;
 public class GpxSampler {
 
 
-    public List<GpxPoint> sample(List<GpxPoint> points, int sampleCount) {
+    public List<GpxPointDto> sample(List<GpxPointDto> points, int sampleCount) {
 
-        List<GpxPoint> result = new ArrayList<>();
+        List<GpxPointDto> result = new ArrayList<>();
 
         if (points == null || points.isEmpty()) {
             return result;

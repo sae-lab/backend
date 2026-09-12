@@ -28,5 +28,5 @@ public class TrailDto {
 
     // GPX
     private String gpxUrl;
-    private List<GpxPoint> coordinates;
+    private List<GpxPointDto> coordinates;
 }

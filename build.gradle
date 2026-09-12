@@ -9,7 +9,9 @@ group = 'com.se_lab'
 version = '0.0.1-SNAPSHOT'
 
 java {
-    sourceCompatibility = '17'
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
 }
 
 repositories {
@@ -20,11 +22,21 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-cache'
+    // 비밀번호 재설정 코드 발송용. SMTP 설정(MAIL_*)이 없으면 JavaMailSender 빈이
+    // 만들어지지 않으므로, 쓰는 쪽에서 ObjectProvider로 없을 수 있다고 보고 받는다.
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
     runtimeOnly 'org.postgresql:postgresql'
 
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+    implementation 'com.github.ben-manes.caffeine:caffeine'
+
+    implementation platform('software.amazon.awssdk:bom:2.49.6')
+    implementation 'software.amazon.awssdk:s3'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 
@@ -37,9 +49,15 @@ dependencies {
     implementation 'org.jetbrains:annotations:26.0.2'
 
     implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-xml'
-
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'
+    implementation 'org.apache.commons:commons-lang3:3.18.0'
+    implementation 'software.amazon.awssdk:url-connection-client'
 }
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+tasks.named('bootJar') {
+    archiveFileName.set('app.jar')
 }

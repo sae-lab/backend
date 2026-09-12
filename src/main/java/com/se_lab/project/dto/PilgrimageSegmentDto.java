@@ -23,4 +23,5 @@ public class PilgrimageSegmentDto {
     private String difficulty;
     private int estimatedMinutes;
     private List<BasePlaceDto> spots;
+    private List<Coordinate> path;
 }

@@ -21,11 +21,17 @@ public class PilgrimageRoute {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(unique = true)
+    private String identifier;
+
     @Column(nullable = false)
     private String name;
 
     @Column(nullable = false, length = 500)
     private String description;
+
+    // 자동생성 시 선택한 관심 카테고리(Tour API contentTypeId). null이면 필터 없음.
+    private String category;
 
     @Builder.Default
     @OneToMany(mappedBy = "route", cascade = CascadeType.ALL, orphanRemoval = true)

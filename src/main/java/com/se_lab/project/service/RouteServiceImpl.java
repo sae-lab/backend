@@ -1,7 +1,6 @@
 package com.se_lab.project.service;
 
 import com.se_lab.project.constants.TourApiConstants;
-import com.se_lab.project.constants.TourTimeConstants;
 import com.se_lab.project.dto.BasePlaceDto;
 import com.se_lab.project.dto.CourseDetailDto;
 import com.se_lab.project.dto.HomeRecommendDto;
@@ -18,6 +17,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class RouteServiceImpl implements RouteService {
+
+    private static final int WALKING_STOPOVER_MINUTES = 15;
 
     private boolean isWalkingPlace(BasePlaceDto place) {
 
@@ -65,21 +66,21 @@ public class RouteServiceImpl implements RouteService {
 
     @Override
     public CourseDetailDto getRouteDetail(String id) {
-        return new CourseDetailDto("Placeholder Title", "Placeholder Address", 0.0, 0.0, "", id, "Detailed description of " + id);
+        return tourApiService.getPlaceDetail(id);
     }
 
     @Override
     public List<HomeRecommendDto> getRandomRecommendRoutes(int count) {
-        List<BasePlaceDto> allRoutes = tourApiService.getPlacesByArea(
-                TourApiConstants.DEFAULT_AREA_CODE, null, TourApiConstants.DEFAULT_CONTENT_TYPE_ID, 200);
+        List<BasePlaceDto> allRoutes = tourApiService.getHomeRecommendationCandidates();
 
         if (allRoutes == null || allRoutes.isEmpty()) return Collections.emptyList();
 
-        Collections.shuffle(allRoutes);
+        List<BasePlaceDto> shuffledRoutes = new java.util.ArrayList<>(allRoutes);
+        Collections.shuffle(shuffledRoutes);
 
-        return allRoutes.stream()
+        return shuffledRoutes.stream()
                 .limit(count)
-                .map(place -> new HomeRecommendDto(place.getTitle(), place.getAddr1(), place.getMapy(), place.getMapx(), place.getThumbnailUrl(), place.getContentId(), "보통"))
+                .map(place -> new HomeRecommendDto(place.getTitle(), place.getAddr1(), place.getLatitude(), place.getLongitude(), place.getThumbnailUrl(), place.getContentId(), "보통"))
                 .collect(Collectors.toList());
     }
 
@@ -95,30 +96,12 @@ public class RouteServiceImpl implements RouteService {
 
         logNearbyCandidateCount(candidates);
 
-        // 여기 추가
-        for (BasePlaceDto c : candidates) {
-            log.info(
-                    "API 후보: {} / type={} / cat1={} / cat2={} / cat3={}",
-                    c.getTitle(),
-                    c.getContentTypeId(),
-                    c.getCat1(),
-                    c.getCat2(),
-                    c.getCat3()
-            );
-        }
-
         candidates = filterWalkingCandidates(candidates);
-        candidates.forEach(p -> p.setEstimatedStayTime(TourTimeConstants.getStayTime("tourist_attraction")));
-        
-        // 로그
+        // 관광 방문(90분)이 아니라 잠깐 들르는 산책 스팟이라, 30/60분 예산에서도
+        // 실제로 경로에 포함될 수 있도록 짧은 체류시간을 준다.
+        candidates.forEach(p -> p.setEstimatedStayTime(WALKING_STOPOVER_MINUTES));
 
         log.info("필터 이후 후보 개수: {}", candidates.size());
-
-        for(BasePlaceDto c : candidates){
-            log.info("필터 통과: {}", c.getTitle());
-        }
-        
-        // 로그
 
         if (candidates.isEmpty()) {
             return Collections.emptyList();

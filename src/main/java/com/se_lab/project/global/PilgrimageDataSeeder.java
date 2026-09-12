@@ -3,21 +3,43 @@ package com.se_lab.project.global;
 import com.se_lab.project.entity.PilgrimageRoute;
 import com.se_lab.project.entity.PilgrimageSegment;
 import com.se_lab.project.repository.PilgrimageRouteRepository;
+import com.se_lab.project.service.TrailSyncService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
+import com.se_lab.project.repository.TrailRepository;
 
+@Slf4j
 @Component
+@ConditionalOnProperty(prefix = "app.seed", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class PilgrimageDataSeeder implements CommandLineRunner {
 
     private final PilgrimageRouteRepository pilgrimageRouteRepository;
+    private final TrailSyncService trailSyncService;
+    private final TrailRepository trailRepository;
 
     @Override
     public void run(String... args) {
-        if (pilgrimageRouteRepository.count() > 0) return;
+        if (trailRepository.count() == 0) {
+            try {
+                trailSyncService.syncTrails();
+            } catch (Exception e) {
+                // 두루누비 API 키가 없거나 호출이 실패해도 앱 부팅 자체는 막지 않는다.
+                log.warn("두루누비 트레일 동기화 실패, 건너뜀 (type={})", e.getClass().getSimpleName());
+            }
+        }
+
+        String identifier = "seed-gangneung-donghae-samcheok";
+
+        if (pilgrimageRouteRepository.existsByIdentifier(identifier)) {
+            return;
+        }
 
         PilgrimageRoute route = PilgrimageRoute.builder()
+                .identifier(identifier)
                 .name("강릉-동해-삼척 해안 순례길")
                 .description("강릉에서 동해를 거쳐 삼척까지, 동해안을 따라 걷는 구간형 순례 코스")
                 .build();

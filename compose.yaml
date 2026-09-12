@@ -1,0 +1,46 @@
+services:
+  database:
+    image: docker.io/library/postgres:16
+    environment:
+      POSTGRES_DB: sightseeing
+      POSTGRES_USER: "${DB_USERNAME:-postgres}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - database_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    depends_on:
+      database:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Compose provides its own PostgreSQL service. These values intentionally
+      # override the host-oriented localhost settings in .env.example.
+      DB_URL: jdbc:postgresql://database:5432/sightseeing
+      DB_USERNAME: "${DB_USERNAME:-postgres}"
+      DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD must be set in .env}"
+      # The image defaults to /tmp/uploads. Keep local Compose uploads between
+      # container recreations without making that path part of the image.
+      FILE_UPLOAD_DIR: /tmp/uploads
+      # Render supplies its own PORT and AWS binds the container through
+      # Podman Quadlet. Compose is intentionally a local-only entry point.
+      PORT: "8080"
+    ports:
+      - "${HOST_PORT:-8080}:8080"
+    volumes:
+      - local_uploads:/tmp/uploads
+    restart: unless-stopped
+
+volumes:
+  database_data:
+  local_uploads:

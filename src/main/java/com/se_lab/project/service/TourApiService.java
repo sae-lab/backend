@@ -2,17 +2,26 @@ package com.se_lab.project.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Cache;
 import com.se_lab.project.constants.TourApiConstants;
 import com.se_lab.project.constants.TourTimeConstants;
+import com.se_lab.project.config.CacheConfig;
 import com.se_lab.project.dto.BasePlaceDto;
+import com.se_lab.project.dto.CourseDetailDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.caffeine.CaffeineCache;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 @Slf4j
 @Service
@@ -26,6 +35,10 @@ public class TourApiService {
     private final String areaBasedEndpoint;
     private final String serviceKey;
     private final String searchKeywordEndpoint;
+    private final String detailCommonEndpoint;
+    private final Cache<Object, Object> homeRecommendationCandidatesCache;
+    private final ConcurrentMap<Object, CompletableFuture<List<BasePlaceDto>>> homeRecommendationCandidatesLoads
+            = new ConcurrentHashMap<>();
 
     public TourApiService(
             RestTemplate restTemplate,
@@ -34,7 +47,9 @@ public class TourApiService {
             @Value("${tour-api.endpoints.location-based}") String locationBasedEndpoint,
             @Value("${tour-api.endpoints.area-based}") String areaBasedEndpoint,
             @Value("${tour-api.service-key}") String serviceKey,
-            @Value("${tour-api.endpoints.search-keyword}") String searchKeywordEndpoint
+            @Value("${tour-api.endpoints.search-keyword}") String searchKeywordEndpoint,
+            @Value("${tour-api.endpoints.detail-common}") String detailCommonEndpoint,
+            CacheManager cacheManager
     ) {
         this.restTemplate = restTemplate;
         this.mapper = mapper;
@@ -43,10 +58,20 @@ public class TourApiService {
         this.areaBasedEndpoint = areaBasedEndpoint;
         this.serviceKey = serviceKey;
         this.searchKeywordEndpoint = searchKeywordEndpoint;
+        this.detailCommonEndpoint = detailCommonEndpoint;
+        CaffeineCache cache = (CaffeineCache) Objects.requireNonNull(
+                cacheManager.getCache(CacheConfig.HOME_RECOMMENDATION_CANDIDATES)
+        );
+        this.homeRecommendationCandidatesCache = cache.getNativeCache();
     }
 
     public List<BasePlaceDto> getNearbyPlaces(String mapX, String mapY) {
-        String fullUrl = UriComponentsBuilder.fromHttpUrl(baseUrl + locationBasedEndpoint)
+        return getNearbyPlaces(mapX, mapY, null);
+    }
+
+    // contentTypeId가 주어지면 해당 카테고리로만 필터링 (순례길 자동생성 카테고리 선택용)
+    public List<BasePlaceDto> getNearbyPlaces(String mapX, String mapY, String contentTypeId) {
+        UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromHttpUrl(baseUrl + locationBasedEndpoint)
                 .queryParam("serviceKey", serviceKey)
                 .queryParam("MobileOS", "ETC")
                 .queryParam("MobileApp", "KangwonRoad")
@@ -55,12 +80,13 @@ public class TourApiService {
                 .queryParam("mapY", mapY)
                 .queryParam("radius", "10000")
                 .queryParam("numOfRows", "100")
-                .queryParam("arrange", "O")
-                .build(false)
-                .toUriString();
+                .queryParam("arrange", "O");
 
-        log.debug("Final URL for getNearbyPlaces: {}", fullUrl);
+        if (contentTypeId != null && !contentTypeId.isEmpty()) {
+            uriBuilder.queryParam("contentTypeId", contentTypeId);
+        }
 
+        String fullUrl = uriBuilder.build(false).toUriString();
         return fetchAndParse(fullUrl, "getNearbyPlaces", true);
     }
 
@@ -78,8 +104,48 @@ public class TourApiService {
         if (contentTypeId != null && !contentTypeId.isEmpty()) uriBuilder.queryParam("contentTypeId", contentTypeId);
 
         String fullUrl = uriBuilder.build(false).toUriString();
-        log.debug("Final URL for getPlacesByArea: {}", fullUrl);
         return fetchAndParse(fullUrl, "getPlacesByArea", false);
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<BasePlaceDto> getHomeRecommendationCandidates() {
+        Object key = "default";
+        List<BasePlaceDto> cachedCandidates = (List<BasePlaceDto>) homeRecommendationCandidatesCache.getIfPresent(key);
+        if (cachedCandidates != null) {
+            return cachedCandidates;
+        }
+
+        CompletableFuture<List<BasePlaceDto>> newLoad = new CompletableFuture<>();
+        CompletableFuture<List<BasePlaceDto>> activeLoad = homeRecommendationCandidatesLoads.putIfAbsent(key, newLoad);
+        if (activeLoad != null) {
+            return activeLoad.join();
+        }
+
+        try {
+            cachedCandidates = (List<BasePlaceDto>) homeRecommendationCandidatesCache.getIfPresent(key);
+            if (cachedCandidates != null) {
+                newLoad.complete(cachedCandidates);
+                return cachedCandidates;
+            }
+
+            List<BasePlaceDto> places = getPlacesByArea(
+                    TourApiConstants.DEFAULT_AREA_CODE,
+                    null,
+                    TourApiConstants.DEFAULT_CONTENT_TYPE_ID,
+                    200
+            );
+            List<BasePlaceDto> candidates = places == null || places.isEmpty() ? List.of() : List.copyOf(places);
+            if (!candidates.isEmpty()) {
+                homeRecommendationCandidatesCache.put(key, candidates);
+            }
+            newLoad.complete(candidates);
+            return candidates;
+        } catch (RuntimeException | Error exception) {
+            newLoad.completeExceptionally(exception);
+            throw exception;
+        } finally {
+            homeRecommendationCandidatesLoads.remove(key, newLoad);
+        }
     }
 
     public List<BasePlaceDto> searchByKeyword(String keyword, int numOfRows) {
@@ -93,8 +159,55 @@ public class TourApiService {
                 .queryParam("arrange", "A");
 
         String fullUrl = uriBuilder.build(false).toUriString();
-        log.debug("Final URL for searchByKeyword: {}", fullUrl);
         return fetchAndParse(fullUrl, "searchByKeyword", false);
+    }
+
+    // contentId 단건 상세 정보(설명글 포함)를 조회한다.
+    // 주의: 이 API 버전(KorService2)의 detailCommon2는 defaultYN/firstImageYN 같은
+    // 부가 플래그나 contentTypeId를 넘기면 INVALID_REQUEST_PARAMETER_ERROR를 낸다.
+    // contentId만 넘겨도 overview/mapx/mapy/firstimage가 기본으로 포함되어 온다.
+    public CourseDetailDto getPlaceDetail(String contentId) {
+        String fullUrl = UriComponentsBuilder.fromHttpUrl(baseUrl + detailCommonEndpoint)
+                .queryParam("serviceKey", serviceKey)
+                .queryParam("MobileOS", "ETC")
+                .queryParam("MobileApp", "KangwonRoad")
+                .queryParam("_type", "json")
+                .queryParam("contentId", contentId)
+                .build(false).toUriString();
+        log.debug("Final URL for getPlaceDetail: {}", fullUrl);
+
+        String jsonString;
+        try {
+            jsonString = restTemplate.getForObject(fullUrl, String.class);
+        } catch (Exception e) {
+            log.error("API 네트워크 호출 실패 [getPlaceDetail]: {}", e.getMessage());
+            return null;
+        }
+
+        try {
+            JsonNode root = mapper.readTree(jsonString);
+            JsonNode item = root.path("response").path("body").path("items").path("item");
+            if (item.isArray()) item = item.get(0);
+            if (item == null || item.isMissingNode()) return null;
+
+            String imageUrl = TourImageUrlNormalizer.normalize(item.path("firstimage").asText(""));
+            if (imageUrl.isEmpty()) {
+                imageUrl = "https://cdn.pixabay.com/photo/2019/08/08/11/33/korea-4392764_1280.jpg";
+            }
+
+            return new CourseDetailDto(
+                    item.path("title").asText(),
+                    item.path("addr1").asText(),
+                    item.path("mapy").asDouble(),
+                    item.path("mapx").asDouble(),
+                    imageUrl,
+                    contentId,
+                    item.path("overview").asText("")
+            );
+        } catch (Exception e) {
+            log.error("JSON 파싱 실패 [getPlaceDetail]: {}", e.getMessage());
+            return null;
+        }
     }
 
     private List<BasePlaceDto> fetchAndParse(String fullUrl, String methodName, boolean useDefaultImage) {
@@ -102,7 +215,7 @@ public class TourApiService {
         try {
             jsonString = restTemplate.getForObject(fullUrl, String.class);
         } catch (Exception e) {
-            log.error("API 네트워크 호출 실패 [{}]: {}", methodName, e.getMessage());
+            log.warn("관광 API 호출 실패 [{}], type={}", methodName, e.getClass().getSimpleName());
             return new ArrayList<>();
         }
 
@@ -140,7 +253,7 @@ public class TourApiService {
                 item.path("cat3").asText()
         );
 
-        String imageUrl = item.path("firstimage").asText("");
+        String imageUrl = TourImageUrlNormalizer.normalize(item.path("firstimage").asText(""));
         if (useDefaultImage && imageUrl.isEmpty()) {
             imageUrl = "https://cdn.pixabay.com/photo/2019/08/08/11/33/korea-4392764_1280.jpg";
         }

@@ -1,5 +1,6 @@
 package com.se_lab.project.controller;
 
+import com.se_lab.project.constants.TourApiConstants;
 import com.se_lab.project.dto.PilgrimageRouteDetailDto;
 import com.se_lab.project.dto.PilgrimageRouteSummaryDto;
 import com.se_lab.project.service.PilgrimageService;
@@ -32,7 +33,20 @@ public class PilgrimageController {
     }
 
     @PostMapping("/generate")
-    public ResponseEntity<PilgrimageRouteSummaryDto> generateRoute() {
-        return ResponseEntity.ok(pilgrimageService.generateRandomRoute());
+    public ResponseEntity<PilgrimageRouteSummaryDto> generateRoute(
+            @RequestParam(required = false) String category) {
+        return ResponseEntity.ok(pilgrimageService.generateRandomRoute(toContentTypeId(category)));
+    }
+
+    private String toContentTypeId(String category) {
+        if (category == null) return null;
+        return switch (category) {
+            case "tourist_attraction" -> TourApiConstants.CONTENT_TYPE_TOURIST_ATTRACTION;
+            case "culture" -> TourApiConstants.CONTENT_TYPE_CULTURE;
+            case "festival" -> TourApiConstants.CONTENT_TYPE_FESTIVAL;
+            case "leports" -> TourApiConstants.CONTENT_TYPE_LEPORTS;
+            case "food" -> TourApiConstants.CONTENT_TYPE_FOOD;
+            default -> null;
+        };
     }
 }

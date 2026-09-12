@@ -1,6 +1,8 @@
 package com.se_lab.project.entity;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.Setter;
 
 @Getter
 @Entity
@@ -18,11 +20,23 @@ public class User {
 
     // ✨ Getter 추가
     // ✨ 진짜 로그인을 위한 비밀번호 필드 추가!
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @Column(nullable = false)
     private String password;
 
+    // 회원가입 시 받는 실명. 게시판 등 공개된 곳에는 절대 노출하지 않고,
+    // 공개 표시용으로는 항상 nickname(또는 익명 기본값)만 쓴다 — 아래 getDisplayName() 참고.
     @Column(nullable = false)
     private String name;
+
+    // 사용자가 직접 설정하는 공개 닉네임. 설정 전에는 null이며, 이 경우 getDisplayName()이 "익명" + id로 대체한다.
+    @Setter
+    @Column
+    private String nickname;
+
+    @Setter
+    @Column
+    private String profileImageUrl;
 
     // 기본 생성자
     public User() {}
@@ -34,4 +48,14 @@ public class User {
         this.name = name;
     }
 
+    /// 비밀번호 재설정용. 넘어오는 값은 이미 인코딩된 것이어야 한다
+    /// (평문을 그대로 넣으면 로그인 비교가 영영 실패한다).
+    public void changePassword(String encodedPassword) {
+        this.password = encodedPassword;
+    }
+
+    // 게시판/댓글 등 공개 화면에 표시할 이름. 실명(name)은 절대 여기 섞이지 않는다.
+    public String getDisplayName() {
+        return (nickname != null && !nickname.isBlank()) ? nickname : "익명" + id;
+    }
 }

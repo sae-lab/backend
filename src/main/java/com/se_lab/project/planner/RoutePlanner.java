@@ -34,8 +34,8 @@ public class RoutePlanner {
                 place -> travelTimeService.calculateTravelTime(
                         currentX,
                         currentY,
-                        place.getMapx(),
-                        place.getMapy()
+                        place.getLongitude(),
+                        place.getLatitude()
                 )
         ));
 
@@ -48,8 +48,8 @@ public class RoutePlanner {
             int travelTime = travelTimeService.calculateTravelTime(
                     currentRouteX,
                     currentRouteY,
-                    place.getMapx(),
-                    place.getMapy()
+                    place.getLongitude(),
+                    place.getLatitude()
             );
             int stayTime = place.getEstimatedStayTime();
             int totalTimeNeeded = travelTime + stayTime;
@@ -65,12 +65,11 @@ public class RoutePlanner {
             if (totalTimeNeeded <= remainingMinutes) {
                 route.add(place);
                 remainingMinutes -= totalTimeNeeded;
-                currentRouteX = place.getMapx();
-                currentRouteY = place.getMapy();
+                currentRouteX = place.getLongitude();
+                currentRouteY = place.getLatitude();
             }
         }
 
         return route;
     }
 }
-

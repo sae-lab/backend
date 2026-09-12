@@ -8,5 +8,5 @@ import java.util.List;
 public interface PilgrimageService {
     List<PilgrimageRouteSummaryDto> getAllRoutes();
     PilgrimageRouteDetailDto getRouteDetail(Long id);
-    PilgrimageRouteSummaryDto generateRandomRoute();
+    PilgrimageRouteSummaryDto generateRandomRoute(String category);
 }
