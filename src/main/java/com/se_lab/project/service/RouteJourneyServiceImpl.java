@@ -77,7 +77,7 @@ public class RouteJourneyServiceImpl implements RouteJourneyService {
 
     @Override
     @Transactional
-    public RouteJourneyDetailDto startJourney(String userEmail, String sourceType, Long sourceId) {
+    public RouteJourneyDetailDto startJourney(String userEmail, String sourceType, Long sourceId, List<String> contentIds) {
         User user = findUser(userEmail);
 
         if (routeJourneyRepository.findByUserAndStatus(user, "IN_PROGRESS").isPresent()) {
@@ -86,7 +86,9 @@ public class RouteJourneyServiceImpl implements RouteJourneyService {
 
         RouteJourney journey;
         if ("AI_PILGRIMAGE".equals(sourceType)) {
-            journey = buildFromPilgrimage(user, sourceId);
+            journey = contentIds != null
+                    ? buildFromSelectedPilgrimageSpots(user, sourceId, contentIds)
+                    : buildFromPilgrimage(user, sourceId);
         } else if ("USER_ROUTE".equals(sourceType)) {
             journey = buildFromUserRoute(user, sourceId);
         } else {
@@ -123,6 +125,28 @@ public class RouteJourneyServiceImpl implements RouteJourneyService {
                 if (contentId == null || contentId.isBlank() || !seen.add(contentId)) continue;
                 journey.addCheckpoint(tourCheckpoint(sequence++, contentId));
             }
+        }
+        return journey;
+    }
+
+    /// 순례길 상세 화면에서 고른 스팟으로만 여정을 만든다. 화면에 보인 순서를 그대로 쓴다.
+    ///
+    /// 상세를 다시 조회하지 않는다 — 스팟을 관광 API로 새로 찾느라 느리고,
+    /// 그 사이 결과가 바뀌면 사용자가 고른 스팟이 빠질 수 있다.
+    private RouteJourney buildFromSelectedPilgrimageSpots(User user, Long pilgrimageRouteId, List<String> contentIds) {
+        PilgrimageRouteSummaryDto pilgrimage = pilgrimageService.getRouteSummary(pilgrimageRouteId);
+
+        RouteJourney journey = RouteJourney.builder()
+                .user(user)
+                .sourceType("AI_PILGRIMAGE")
+                .sourceId(pilgrimageRouteId)
+                .title(pilgrimage.getName())
+                .totalDistanceKm(pilgrimage.getTotalDistanceKm())
+                .build();
+
+        int sequence = 1;
+        for (String contentId : TourSpotLookupService.selectedIds(contentIds)) {
+            journey.addCheckpoint(tourCheckpoint(sequence++, contentId));
         }
         return journey;
     }

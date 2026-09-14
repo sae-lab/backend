@@ -2,6 +2,7 @@ package com.se_lab.project.service;
 
 import com.se_lab.project.dto.BasePlaceDto;
 import com.se_lab.project.dto.PilgrimageRouteDetailDto;
+import com.se_lab.project.dto.PilgrimageRouteSummaryDto;
 import com.se_lab.project.dto.PilgrimageSegmentDto;
 import com.se_lab.project.dto.RouteJourneyCheckpointDto;
 import com.se_lab.project.dto.RouteJourneyDetailDto;
@@ -31,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -75,7 +77,7 @@ class RouteJourneyServiceImplTest {
                 "111", spot("111", "영랑호", 38.21, 128.58),
                 "222", spot("222", "청초호", 38.19, 128.59)));
 
-        RouteJourneyDetailDto detail = routeJourneyService.startJourney(WALKER_EMAIL, "AI_PILGRIMAGE", PILGRIMAGE_ID);
+        RouteJourneyDetailDto detail = routeJourneyService.startJourney(WALKER_EMAIL, "AI_PILGRIMAGE", PILGRIMAGE_ID, null);
 
         ArgumentCaptor<RouteJourney> saved = ArgumentCaptor.forClass(RouteJourney.class);
         verify(routeJourneyRepository).save(saved.capture());
@@ -96,6 +98,37 @@ class RouteJourneyServiceImplTest {
     }
 
     @Test
+    void startingAiPilgrimageWithSelectedSpotsKeepsOnlyThoseInGivenOrder() {
+        walkerWithoutActiveJourney();
+        when(pilgrimageService.getRouteSummary(PILGRIMAGE_ID)).thenReturn(summary());
+        when(routeJourneyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        routeJourneyService.startJourney(WALKER_EMAIL, "AI_PILGRIMAGE", PILGRIMAGE_ID,
+                List.of("222", " 111 ", "222", ""));
+
+        ArgumentCaptor<RouteJourney> saved = ArgumentCaptor.forClass(RouteJourney.class);
+        verify(routeJourneyRepository).save(saved.capture());
+        // 화면에서 고른 순서를 따르고, 빈 값과 중복은 뺀다.
+        assertThat(saved.getValue().getCheckpoints())
+                .extracting(RouteJourneyCheckpoint::getContentId)
+                .containsExactly("222", "111");
+        assertThat(saved.getValue().getTitle()).isEqualTo("속초 순례길");
+        // 고른 스팟으로 시작할 때는 스팟을 관광 API로 새로 찾는 느린 상세 조회를 하지 않는다.
+        verify(pilgrimageService, never()).getRouteDetail(any());
+    }
+
+    @Test
+    void startingWithEmptySelectionIsRejected() {
+        walkerWithoutActiveJourney();
+        when(pilgrimageService.getRouteSummary(PILGRIMAGE_ID)).thenReturn(summary());
+
+        assertThatThrownBy(() -> routeJourneyService.startJourney(WALKER_EMAIL, "AI_PILGRIMAGE", PILGRIMAGE_ID, List.of()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("하나 이상");
+        verify(routeJourneyRepository, never()).save(any());
+    }
+
+    @Test
     void startingPostCopiesOwnWaypointsAndKeepsOnlyIdForTourSpots() {
         User walker = walkerWithoutActiveJourney();
         UserRoute route = UserRoute.builder().author(walker).title("속초 산책").build();
@@ -107,7 +140,7 @@ class RouteJourneyServiceImplTest {
         when(routeJourneyRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(tourSpotLookupService.findAll(any())).thenReturn(Map.of("126508", spot("126508", "영랑호", 38.21, 128.58)));
 
-        RouteJourneyDetailDto detail = routeJourneyService.startJourney(WALKER_EMAIL, "USER_ROUTE", ROUTE_ID);
+        RouteJourneyDetailDto detail = routeJourneyService.startJourney(WALKER_EMAIL, "USER_ROUTE", ROUTE_ID, null);
 
         ArgumentCaptor<RouteJourney> saved = ArgumentCaptor.forClass(RouteJourney.class);
         verify(routeJourneyRepository).save(saved.capture());
@@ -247,6 +280,12 @@ class RouteJourneyServiceImplTest {
         }
         when(routeJourneyRepository.findById(JOURNEY_ID)).thenReturn(Optional.of(journey));
         return journey;
+    }
+
+    private static PilgrimageRouteSummaryDto summary() {
+        return PilgrimageRouteSummaryDto.builder()
+                .id(PILGRIMAGE_ID).name("속초 순례길").description("설명").totalDistanceKm(12.5)
+                .build();
     }
 
     private static RouteJourneyCheckpoint tourCheckpoint(int sequenceOrder, String contentId) {
