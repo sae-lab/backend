@@ -125,6 +125,14 @@ public class RouteJourneyServiceImpl implements RouteJourneyService {
         UserRoute route = userRouteRepository.findById(userRouteId)
                 .orElseThrow(() -> new EntityNotFoundException("게시물을 찾을 수 없습니다: " + userRouteId));
 
+        // 관광지로 만든 게시물의 웨이포인트는 좌표를 저장하지 않는다(공사 규정상 실시간 조회).
+        // 그런데 여정 체크포인트는 원본 좌표를 복사해 서버에서 스탬프를 판정하는 구조라,
+        // 이대로 시작하면 관광 데이터를 다시 저장하게 된다. 위치정보 처리 방식(스탬프 판정을
+        // 서버에서 할지 앱에서 할지)이 정해질 때까지 막아둔다.
+        if (route.getWaypoints().stream().anyMatch(UserRouteWaypoint::isTourSpot)) {
+            throw new IllegalStateException("관광지로 만든 게시물은 아직 여행으로 추가할 수 없습니다.");
+        }
+
         RouteJourney journey = RouteJourney.builder()
                 .user(user)
                 .sourceType("USER_ROUTE")

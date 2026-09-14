@@ -39,9 +39,22 @@ public class UserRouteWaypoint {
     @Column(nullable = false)
     private double lng;
 
-    // 로컬 디스크에 저장된 업로드 사진의 상대경로(예: /uploads/user-routes/xxx.jpg) 또는
-    // AI 순례길에서 게시물로 변환된 경우 외부(Tour API) 절대 URL. null 허용 — 사진이 없을 수도 있다.
+    // 사용자가 올린 사진의 경로. null 허용 — 사진이 없을 수도 있다.
+    // 관광지 웨이포인트(contentId가 있는 것)는 사진을 저장하지 않고 보여줄 때 조회한다.
     private String photoUrl;
+
+    /// 한국관광공사 OpenAPI의 콘텐츠 ID. AI 순례길을 게시물로 옮긴 웨이포인트에만 있다.
+    ///
+    /// 공사 규정상 관광 데이터는 로컬에 저장하지 않고 실시간으로 호출해야 한다.
+    /// 그래서 이 경우 제목·주소·좌표·사진은 저장하지 않고(NOT NULL 칸은 빈 값),
+    /// 보여줄 때마다 이 ID로 상세 정보를 다시 받아온다. 사용자가 직접 찍은 웨이포인트는 null이다.
+    @Column(name = "content_id", length = 50)
+    private String contentId;
+
+    /// 관광공사 데이터를 실시간으로 조회해서 채워야 하는 웨이포인트인지.
+    public boolean isTourSpot() {
+        return contentId != null && !contentId.isBlank();
+    }
 
     /// 중간 웨이포인트를 지운 뒤 남은 것들의 번호를 1부터 다시 매길 때 쓴다.
     /// 안 그러면 화면에 1, 3, 4처럼 빠진 번호가 그대로 보인다.
