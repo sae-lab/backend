@@ -53,7 +53,7 @@ Flutter 모바일/웹
         -> Spring Security + 자체 JWT
         -> Spring Data JPA + PostgreSQL JDBC
            -> Supabase Supavisor Session Pooler 5432
-        -> 관광 API / 두루누비 API / Kakao Mobility / 공개 OSRM
+        -> 관광 API / Kakao Mobility / 공개 OSRM
         -> 컨테이너 로컬 업로드 디렉터리
 ```
 
@@ -71,7 +71,7 @@ Flutter 모바일/웹
 | 설정 로딩 | Spring 환경변수 + 선택적 `.env` 로딩. `.env` 부재는 무시 | `SightseeingProjectApplication.java` |
 | 활성 프로필 | 별도 프로필 강제 없음 | 전체 설정 파일 검색 |
 | 업로드 | `STORAGE_TYPE=local`이면 로컬 파일 시스템, `r2`이면 Cloudflare R2에 저장 | `StorageService.java`, `LocalStorageService.java`, `R2StorageService.java` |
-| 시작 시 작업 | 기본 기동에서는 seeder가 생성되지 않는다. `APP_SEED_ENABLED=true`인 명시적 초기화 기동에서만 두루누비 동기화와 순례길 시드 저장을 시도한다. | `PilgrimageDataSeeder.java`, `application.yml` |
+| 시작 시 작업 | 기본 기동에서는 seeder가 생성되지 않는다. `APP_SEED_ENABLED=true`인 명시적 초기화 기동에서만 순례길 시드 저장을 시도한다. (두루누비 동기화는 2026-09-14에 기능과 함께 제거) | `PilgrimageDataSeeder.java`, `application.yml` |
 
 ## 4. 기존 계획과 실제 코드의 차이
 
@@ -185,16 +185,12 @@ java -jar build/libs/*.jar
 | `JWT_SECRET` | 예 | 예 | 없음 | 자체 JWT HMAC 서명 키 |
 | `JWT_EXPIRATION_TIME` | 아니요 | 아니요 | `86400000`ms | JWT 유효시간 |
 | `TOUR_API_BASE_URL` | 예 | 아니요 | 없음 | 한국관광공사 관광 API 기본 주소 |
-| `API_TOKEN` | 예 | 예 | 없음 | 관광 API 키이며 걷기 코스 키의 기본 대체값 |
+| `API_TOKEN` | 예 | 예 | 없음 | 관광 API 키 |
 | `TOUR_API_LOCATION_BASED_ENDPOINT` | 아니요 | 아니요 | `/locationBasedList2` | 위치 기반 관광 조회 |
 | `TOUR_API_AREA_BASED_ENDPOINT` | 아니요 | 아니요 | `/areaBasedList2` | 지역 기반 관광 조회 |
 | `TOUR_API_SEARCH_KEYWORD_ENDPOINT` | 아니요 | 아니요 | `/searchKeyword2` | 관광 키워드 검색 |
 | `TOUR_API_IMAGE_LIST_ENDPOINT` | 아니요 | 아니요 | `/detailImage2` | 설정에는 있으나 현재 Java 코드에서 미사용 |
 | `KAKAO_API_KEY` | 예 | 예 | 없음 | Kakao Mobility Directions 인증 |
-| `ROUTE_API_BASE_URL` | 예 | 아니요 | 없음 | 두루누비/걷기 코스 API 기본 주소 |
-| `WALKING_COURSE_SERVICE_KEY` | 조건부 | 예 | `API_TOKEN` | 두루누비 키. 별도 값이 없으면 `API_TOKEN` 사용 |
-| `WALKING_COURSE_LIST_ENDPOINT` | 아니요 | 아니요 | `/courseList` | 두루누비 코스 목록 |
-| `WALKING_COURSE_ROUTE_ENDPOINT` | 아니요 | 아니요 | `/routeList` | 설정에는 있으나 현재 Java 코드에서 미사용 |
 | `FILE_UPLOAD_DIR` | 아니요 | 아니요 | 앱 `./.local/uploads`; Docker `/tmp/uploads` | 로컬 저장 모드의 공통 업로드 루트 |
 | `STORAGE_TYPE` | 아니요 | 아니요 | `local` | 저장 방식. 로컬·Podman은 `local`, Render 개발 배포는 `r2` |
 | `R2_ENDPOINT` | R2 사용 시 예 | 예 | 없음 | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` 형식의 S3 API 주소 |
@@ -206,7 +202,7 @@ java -jar build/libs/*.jar
 | `MAX_UPLOAD_FILE_SIZE` | 아니요 | 아니요 | `10MB` | 이미지 파일 하나의 최대 크기 |
 | `MAX_UPLOAD_REQUEST_SIZE` | 아니요 | 아니요 | `12MB` | multipart 요청 전체의 최대 크기 |
 | `CORS_ALLOWED_ORIGIN_PATTERNS` | Flutter Web 사용 시 예 | 아니요 | `http://localhost:*` | 쉼표 구분 브라우저 허용 Origin pattern |
-| `APP_SEED_ENABLED` | 아니요 | 아니요 | `false` | `true`일 때만 두루누비 동기화와 순례길 초기 데이터를 실행. 일반 Web Service에서는 생략하거나 `false` 유지 |
+| `APP_SEED_ENABLED` | 아니요 | 아니요 | `false` | `true`일 때만 순례길 초기 데이터를 실행. 일반 Web Service에서는 생략하거나 `false` 유지 |
 
 추가 확인 사항:
 

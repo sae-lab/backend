@@ -83,12 +83,6 @@ tour-api:
 kakao:
   api-key: "${KAKAO_API_KEY}"
 
-walking-course:
-  base-url: "${ROUTE_API_BASE_URL}"
-  service-key: "${WALKING_COURSE_SERVICE_KEY:${API_TOKEN}}"
-  endpoints:
-    course-list: "/courseList"
-
 file:
   upload-dir: "${FILE_UPLOAD_DIR:./.local/uploads}"
   # 이전 기본 경로에 남아 있는 업로드 파일을 읽기 전용으로 제공한다.

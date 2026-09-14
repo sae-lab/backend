@@ -2,7 +2,7 @@
 
 > 공식 프로젝트명과 제품 설명은 아직 확인이 필요합니다.
 
-관광지 정보와 도보 여행 기능을 제공하는 Spring Boot 백엔드입니다. 외부 관광·트레일·길찾기 API를 연결하고, 사용자 인증, 경로 및 여정 데이터, 이미지 저장을 처리합니다.
+관광지 정보와 도보 여행 기능을 제공하는 Spring Boot 백엔드입니다. 외부 관광·길찾기 API를 연결하고, 사용자 인증, 경로 및 여정 데이터, 이미지 저장을 처리합니다.
 
 ## 프로젝트 개요
 
@@ -19,7 +19,6 @@ flowchart LR
     B <--> DB[(PostgreSQL)]
 
     B --> T[Tourism API]
-    B --> D[Durunubi API]
     B --> K[Kakao routing]
     B --> O[Public OSRM server]
 
@@ -35,7 +34,6 @@ Cloudflare R2는 `STORAGE_TYPE=r2`를 선택한 경우에만 사용합니다.
 - 관광지 조회와 이미지 프록시
 - 관광지 기반 경로 조회·추천·최적 경로 계산
 - 순례길 조회·생성·저장
-- 두루누비 트레일 조회와 인근 트레일 조회
 - 사용자 경로 게시, 경유지 이미지 업로드, 좋아요·스크랩·댓글
 - 진행 중인 여정의 생성, 위치 기록, 완료/중단 및 이력 조회
 - 사용자 프로필 조회·수정
@@ -90,7 +88,7 @@ backend/
 
 - Java 17
 - JDBC URL을 통해 접근 가능한 PostgreSQL
-- tourism, Durunubi, Kakao 연동에 필요한 외부 API credential
+- tourism, Kakao 연동에 필요한 외부 API credential
 - Gradle은 repository의 Wrapper로 제공되므로 별도 Gradle 설치가 필요하지 않습니다.
 
 ### 환경 변수
@@ -116,8 +114,7 @@ cp -n http-client.private.env.example.json http-client.private.env.json
 | --- | --- |
 | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | PostgreSQL JDBC 연결 |
 | `JWT_SECRET` | JWT 서명 secret |
-| `TOUR_API_BASE_URL`, `API_TOKEN` | Tourism API base URL 및 service key (`API_TOKEN`은 Durunubi key의 기본값이기도 합니다) |
-| `ROUTE_API_BASE_URL` | Durunubi API base URL |
+| `TOUR_API_BASE_URL`, `API_TOKEN` | Tourism API base URL 및 service key |
 | `KAKAO_API_KEY` | Kakao directions API credential |
 
 | 선택 환경변수 | 기본값 / 용도 |
@@ -127,12 +124,11 @@ cp -n http-client.private.env.example.json http-client.private.env.json
 | `JPA_DDL_AUTO` | `update` |
 | `JPA_SHOW_SQL` | `false` |
 | `JWT_EXPIRATION_TIME` | `86400000` milliseconds |
-| `WALKING_COURSE_SERVICE_KEY` | 미설정 시 `API_TOKEN` 사용 |
 | `STORAGE_TYPE` | `local`; `local` 또는 `r2` 선택 |
 | `FILE_UPLOAD_DIR` | 로컬 저장소의 애플리케이션 기본값은 `./.local/uploads`; Docker runtime에서는 `/tmp/uploads`로 설정 |
 | `FILE_LEGACY_UPLOAD_DIR` | `./.local/uploads/user-routes`; legacy 읽기 전용 업로드 위치 |
 | `MAX_UPLOAD_FILE_SIZE`, `MAX_UPLOAD_REQUEST_SIZE` | `10MB`, `12MB`; `IMAGE_MAX_FILE_SIZE`, `IMAGE_MAX_REQUEST_SIZE`도 fallback 이름으로 지원 |
-| `APP_SEED_ENABLED` | `false`; 명시적으로 `true`로 설정했을 때만 초기 trail/pilgrimage 데이터 적재 활성화 |
+| `APP_SEED_ENABLED` | `false`; 명시적으로 `true`로 설정했을 때만 초기 pilgrimage 데이터 적재 활성화 |
 | `CORS_ALLOWED_ORIGIN_PATTERNS` | `http://localhost:*` |
 | `IMAGE_PROXY_ALLOWED_HOSTS` | `tong.visitkorea.or.kr` |
 
@@ -203,12 +199,11 @@ PostgreSQL은 Spring Data JPA와 Hibernate를 통해 접근합니다. 기본 Hib
 
 인증은 stateless JWT 기반입니다. 비밀번호는 저장 전에 BCrypt로 해싱됩니다.
 
-`POST /api/v1/auth/signup`과 `POST /api/v1/auth/login`은 공개되어 있습니다. 보안 설정은 place, home, route, trail, image, upload 리소스의 공개 접근도 허용하며, pilgrimage 조회와 공개 user-route 조회도 공개되어 있습니다. `SecurityConfig`에서는 명시적으로 공개된 경로 외의 요청에 인증이 필요하며, pilgrimage 생성은 그중 하나입니다. `/api/v1/admin/**`는 `denyAll()`로 명시적으로 차단됩니다. 이 README는 API 명세가 아니므로 정확한 요청과 응답 계약은 controller 코드를 확인하세요.
+`POST /api/v1/auth/signup`과 `POST /api/v1/auth/login`은 공개되어 있습니다. 보안 설정은 place, home, route, image, upload 리소스의 공개 접근도 허용하며, pilgrimage 조회와 공개 user-route 조회도 공개되어 있습니다. `SecurityConfig`에서는 명시적으로 공개된 경로 외의 요청에 인증이 필요하며, pilgrimage 생성은 그중 하나입니다. `/api/v1/admin/**`는 `denyAll()`로 명시적으로 차단됩니다. 이 README는 API 명세가 아니므로 정확한 요청과 응답 계약은 controller 코드를 확인하세요.
 
 ## 외부 서비스 / API
 
 - 장소 검색 및 상세 정보를 위한 Tourism API
-- walking-course/trail 데이터를 위한 Durunubi API
 - routing 및 이동 시간 계산을 위한 Kakao directions API
 - 도보 경로 계산을 위한 Public OSRM demo server
 - 선택적인 S3-compatible 이미지 저장 모드를 위한 Cloudflare R2
