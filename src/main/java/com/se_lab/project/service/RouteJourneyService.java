@@ -18,7 +18,11 @@ public interface RouteJourneyService {
     /// 지난 여정 하나를 자세히 본다. 진행 중이든 끝났든 본인 것이면 볼 수 있다.
     RouteJourneyDetailDto getJourney(String userEmail, Long journeyId);
 
-    RouteJourneyDetailDto ping(String userEmail, Long journeyId, double lat, double lng);
+    /// 앱이 판정한 스팟 도착을 기록한다. 보이는 스팟을 모두 찍으면 완주 처리한다.
+    RouteJourneyDetailDto markCheckpointVisited(String userEmail, Long journeyId, int sequenceOrder);
+
+    /// 앱이 계산한 누적 걸은 거리·시간을 저장한다. 사용자 좌표는 받지 않는다.
+    void saveProgress(String userEmail, Long journeyId, double walkedDistanceKm, long elapsedSeconds);
 
     RouteJourneyDetailDto abandonJourney(String userEmail, Long journeyId);
 

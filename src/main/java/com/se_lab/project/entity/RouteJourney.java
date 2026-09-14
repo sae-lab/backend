@@ -65,14 +65,8 @@ public class RouteJourney {
     @Column(nullable = false)
     private long elapsedSeconds = 0;
 
-    @Setter
-    private LocalDateTime lastPingAt;
-
-    @Setter
-    private Double lastLat;
-
-    @Setter
-    private Double lastLng;
+    // 마지막 위치(lastLat/lastLng/lastPingAt)는 두지 않는다. 걸은 거리·시간은 앱이 계산해 누적값만 보낸다.
+    // 사용자 좌표를 서버로 받으면 위치기반서비스사업자 신고 대상이 된다 (#57).
 
     @Builder.Default
     @OneToMany(mappedBy = "journey", cascade = CascadeType.ALL, orphanRemoval = true)

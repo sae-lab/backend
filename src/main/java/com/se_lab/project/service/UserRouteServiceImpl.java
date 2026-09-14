@@ -2,7 +2,6 @@ package com.se_lab.project.service;
 
 import com.se_lab.project.dto.BasePlaceDto;
 import com.se_lab.project.dto.Coordinate;
-import com.se_lab.project.dto.CourseDetailDto;
 import com.se_lab.project.dto.PilgrimageRouteDetailDto;
 import com.se_lab.project.dto.PilgrimageSegmentDto;
 import com.se_lab.project.dto.UserRouteCommentDto;
@@ -20,6 +19,7 @@ import com.se_lab.project.repository.UserRouteLikeRepository;
 import com.se_lab.project.repository.UserRouteRepository;
 import com.se_lab.project.repository.UserRouteScrapRepository;
 import com.se_lab.project.repository.UserRepository;
+import com.se_lab.project.service.TourSpotLookupService.TourSpot;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,9 +33,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -53,25 +50,14 @@ public class UserRouteServiceImpl implements UserRouteService {
     private final PilgrimageService pilgrimageService;
     private final OsrmWalkingDirectionsService osrmWalkingDirectionsService;
     private final NotificationService notificationService;
-    private final TourApiService tourApiService;
+    private final TourSpotLookupService tourSpotLookupService;
 
     // 이보다 웨이포인트가 많으면(예: AI 순례길에서 옮겨진 대형 게시물) 다리(leg)마다
     // 외부 도보 경로 API를 부르는 비용이 너무 커져서, 재정렬만 하고 직선으로 잇는다.
     private static final int MAX_WAYPOINTS_FOR_REAL_ROUTING = 20;
 
-    // 관광지 웨이포인트를 보여줄 때 상세 정보를 동시에 몇 건까지 조회할지.
-    // 순례길을 옮긴 게시물은 스팟이 20개 가까이 되는데, 하나씩 부르면 화면이 수십 초 멈춘다.
-    private static final int TOUR_LOOKUP_CONCURRENCY = 6;
-
     // 목록 표지를 찾으려고 게시물 하나에서 조회할 관광지 수. 목록은 게시물마다 불리므로 작게 둔다.
     private static final int MAX_COVER_LOOKUPS = 2;
-
-    // 데몬 스레드라 서버 종료를 붙잡지 않는다.
-    private static final ExecutorService TOUR_LOOKUP_POOL = Executors.newFixedThreadPool(TOUR_LOOKUP_CONCURRENCY, runnable -> {
-        Thread thread = new Thread(runnable, "tour-spot-lookup");
-        thread.setDaemon(true);
-        return thread;
-    });
 
     @Override
     public List<UserRouteSummaryDto> getAllRoutes(String currentUserEmail, String routeType, String sort) {
@@ -492,9 +478,9 @@ public class UserRouteServiceImpl implements UserRouteService {
             }
             if (lookups >= MAX_COVER_LOOKUPS) continue;
             lookups++;
-            Optional<String> photoUrl = lookupTourSpot(waypoint.getSequenceOrder(), waypoint.getContentId())
-                    .map(ResolvedWaypoint::photoUrl)
-                    .filter(url -> !url.isBlank());
+            Optional<String> photoUrl = tourSpotLookupService.find(waypoint.getContentId())
+                    .map(TourSpot::photoUrl)
+                    .filter(url -> url != null && !url.isBlank());
             if (photoUrl.isPresent()) return photoUrl.get();
         }
         return "";
@@ -521,48 +507,27 @@ public class UserRouteServiceImpl implements UserRouteService {
     /// 관광지 웨이포인트는 상세 정보를 동시에 조회한다. 조회에 실패한 스팟은 결과에서 뺀다 —
     /// 좌표 0,0으로 넘기면 지도에 바다 한가운데 마커가 찍혀 범위가 깨진다.
     private List<ResolvedWaypoint> resolveWaypoints(List<UserRouteWaypoint> waypoints) {
-        List<CompletableFuture<Optional<ResolvedWaypoint>>> futures = waypoints.stream()
-                .map(this::resolveAsync)
-                .toList();
+        Map<String, TourSpot> spots = tourSpotLookupService.findAll(waypoints.stream()
+                .filter(UserRouteWaypoint::isTourSpot)
+                .map(UserRouteWaypoint::getContentId)
+                .toList());
 
-        return futures.stream()
-                .map(CompletableFuture::join)
-                .flatMap(Optional::stream)
-                .collect(Collectors.toList());
-    }
-
-    private CompletableFuture<Optional<ResolvedWaypoint>> resolveAsync(UserRouteWaypoint waypoint) {
-        if (!waypoint.isTourSpot()) {
-            return CompletableFuture.completedFuture(Optional.of(new ResolvedWaypoint(
-                    waypoint.getSequenceOrder(), waypoint.getTitle(), waypoint.getMemo(),
-                    waypoint.getLat(), waypoint.getLng(), waypoint.getPhotoUrl())));
+        List<ResolvedWaypoint> resolved = new ArrayList<>();
+        for (UserRouteWaypoint waypoint : waypoints) {
+            if (!waypoint.isTourSpot()) {
+                resolved.add(new ResolvedWaypoint(
+                        waypoint.getSequenceOrder(), waypoint.getTitle(), waypoint.getMemo(),
+                        waypoint.getLat(), waypoint.getLng(), waypoint.getPhotoUrl()));
+                continue;
+            }
+            TourSpot spot = spots.get(waypoint.getContentId());
+            if (spot != null) {
+                resolved.add(new ResolvedWaypoint(
+                        waypoint.getSequenceOrder(), spot.title(), spot.address(),
+                        spot.lat(), spot.lng(), spot.photoUrl()));
+            }
         }
-        // 엔티티(지연 로딩)를 다른 스레드로 넘기지 않도록 필요한 값만 꺼내서 넘긴다.
-        int sequenceOrder = waypoint.getSequenceOrder();
-        String contentId = waypoint.getContentId();
-        return CompletableFuture.supplyAsync(() -> lookupTourSpot(sequenceOrder, contentId), TOUR_LOOKUP_POOL);
-    }
-
-    private Optional<ResolvedWaypoint> lookupTourSpot(int sequenceOrder, String contentId) {
-        CourseDetailDto detail;
-        try {
-            detail = tourApiService.getPlaceDetail(contentId);
-        } catch (RuntimeException e) {
-            detail = null;
-        }
-
-        if (detail == null || (detail.getLatitude() == 0 && detail.getLongitude() == 0)) {
-            log.warn("관광지 웨이포인트 조회 실패, 화면에서 제외 (contentId={})", contentId);
-            return Optional.empty();
-        }
-
-        return Optional.of(new ResolvedWaypoint(
-                sequenceOrder,
-                detail.getTitle(),
-                detail.getAddr1(),
-                detail.getLatitude(),
-                detail.getLongitude(),
-                detail.getThumbnailUrl()));
+        return resolved;
     }
 
     private UserRouteCommentDto toCommentDtoWithReplies(UserRouteComment comment, List<UserRouteComment> replies, User currentUser) {
