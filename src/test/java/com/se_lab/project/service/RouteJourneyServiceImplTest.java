@@ -38,8 +38,6 @@ class RouteJourneyServiceImplTest {
     private UserRouteRepository userRouteRepository;
     @Mock
     private SavedPilgrimageService savedPilgrimageService;
-    @Mock
-    private PilgrimageService pilgrimageService;
 
     @InjectMocks
     private RouteJourneyServiceImpl routeJourneyService;
@@ -57,6 +55,17 @@ class RouteJourneyServiceImplTest {
         assertThatThrownBy(() -> routeJourneyService.startJourney(WALKER_EMAIL, "USER_ROUTE", ROUTE_ID))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("여행으로 추가할 수 없습니다");
+        verify(routeJourneyRepository, never()).save(any());
+    }
+
+    @Test
+    void refusesToStartJourneyFromAiPilgrimage() {
+        walkerWithoutActiveJourney();
+
+        // 순례길 스팟은 전부 관광공사 데이터라, 체크포인트로 복사하면 로컬에 저장하게 된다.
+        assertThatThrownBy(() -> routeJourneyService.startJourney(WALKER_EMAIL, "AI_PILGRIMAGE", 14L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("여행으로 추적할 수 없습니다");
         verify(routeJourneyRepository, never()).save(any());
     }
 

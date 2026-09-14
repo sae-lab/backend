@@ -1,9 +1,6 @@
 package com.se_lab.project.service;
 
-import com.se_lab.project.dto.BasePlaceDto;
-import com.se_lab.project.dto.PilgrimageRouteDetailDto;
 import com.se_lab.project.dto.PilgrimageRouteSummaryDto;
-import com.se_lab.project.dto.PilgrimageSegmentDto;
 import com.se_lab.project.dto.RouteJourneyCheckpointDto;
 import com.se_lab.project.dto.RouteJourneyDetailDto;
 import com.se_lab.project.dto.RouteJourneySummaryDto;
@@ -45,7 +42,6 @@ public class RouteJourneyServiceImpl implements RouteJourneyService {
     private final UserRepository userRepository;
     private final UserRouteRepository userRouteRepository;
     private final SavedPilgrimageService savedPilgrimageService;
-    private final PilgrimageService pilgrimageService;
 
     @Override
     public List<TrackableRouteDto> getTrackableRoutes(String userEmail) {
@@ -96,29 +92,9 @@ public class RouteJourneyServiceImpl implements RouteJourneyService {
     }
 
     private RouteJourney buildFromPilgrimage(User user, Long pilgrimageRouteId) {
-        PilgrimageRouteDetailDto pilgrimage = pilgrimageService.getRouteDetail(pilgrimageRouteId);
-
-        RouteJourney journey = RouteJourney.builder()
-                .user(user)
-                .sourceType("AI_PILGRIMAGE")
-                .sourceId(pilgrimageRouteId)
-                .title(pilgrimage.getName())
-                .totalDistanceKm(pilgrimage.getTotalDistanceKm())
-                .build();
-
-        int sequence = 1;
-        for (PilgrimageSegmentDto segment : pilgrimage.getSegments()) {
-            for (BasePlaceDto spot : segment.getSpots()) {
-                journey.addCheckpoint(RouteJourneyCheckpoint.builder()
-                        .sequenceOrder(sequence++)
-                        .title(spot.getTitle())
-                        .lat(spot.getLatitude())
-                        .lng(spot.getLongitude())
-                        .photoUrl(spot.getThumbnailUrl())
-                        .build());
-            }
-        }
-        return journey;
+        // 순례길 스팟은 전부 관광공사 데이터라, 체크포인트로 복사하면 로컬에 저장하게 된다 (#58).
+        // 위치정보 처리 방식(스탬프 판정을 서버에서 할지 앱에서 할지)이 정해질 때까지 막아둔다.
+        throw new IllegalStateException("AI 순례길은 아직 여행으로 추적할 수 없습니다.");
     }
 
     private RouteJourney buildFromUserRoute(User user, Long userRouteId) {
