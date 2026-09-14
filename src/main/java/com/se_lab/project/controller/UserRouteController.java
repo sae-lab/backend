@@ -72,16 +72,30 @@ public class UserRouteController {
     @PostMapping("/from-pilgrimage/{pilgrimageRouteId}")
     public ResponseEntity<?> createFromPilgrimage(
             @PathVariable Long pilgrimageRouteId,
-            @RequestBody(required = false) Map<String, String> body) {
-        String routeType = body != null ? body.get("routeType") : null;
+            @RequestBody(required = false) Map<String, Object> body) {
+        String routeType = body != null && body.get("routeType") instanceof String type ? type : null;
         try {
-            Long id = userRouteService.createFromPilgrimage(pilgrimageRouteId, currentUserEmail(), routeType);
+            // contentIds가 없으면 모든 스팟을, 있으면 사용자가 고른 스팟만 그 순서대로 옮긴다.
+            List<String> contentIds = contentIdsFrom(body);
+            Long id = userRouteService.createFromPilgrimage(pilgrimageRouteId, currentUserEmail(), routeType, contentIds);
             return ResponseEntity.ok(Map.of("id", id));
         } catch (EntityNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (IllegalStateException e) {
             return ResponseEntity.status(422).body(Map.of("message", e.getMessage()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
+    }
+
+    /// 요청 본문의 contentIds. 없으면 null, 목록이 아니면 IllegalArgumentException.
+    private static List<String> contentIdsFrom(Map<String, Object> body) {
+        Object value = body != null ? body.get("contentIds") : null;
+        if (value == null) return null;
+        if (!(value instanceof List<?> list)) {
+            throw new IllegalArgumentException("contentIds는 목록이어야 합니다.");
+        }
+        return list.stream().filter(item -> item != null).map(String::valueOf).toList();
     }
 
     @PostMapping(value = "/{id}/waypoints", consumes = "multipart/form-data")

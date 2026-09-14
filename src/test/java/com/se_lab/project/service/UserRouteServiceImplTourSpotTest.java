@@ -3,6 +3,7 @@ package com.se_lab.project.service;
 import com.se_lab.project.dto.BasePlaceDto;
 import com.se_lab.project.dto.Coordinate;
 import com.se_lab.project.dto.PilgrimageRouteDetailDto;
+import com.se_lab.project.dto.PilgrimageRouteSummaryDto;
 import com.se_lab.project.dto.PilgrimageSegmentDto;
 import com.se_lab.project.dto.UserRouteDetailDto;
 import com.se_lab.project.dto.UserRouteSummaryDto;
@@ -28,10 +29,12 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -94,7 +97,7 @@ class UserRouteServiceImplTourSpotTest {
         when(pilgrimageService.getRouteDetail(7L)).thenReturn(pilgrimage);
         when(userRouteRepository.save(any(UserRoute.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        userRouteService.createFromPilgrimage(7L, AUTHOR_EMAIL, null);
+        userRouteService.createFromPilgrimage(7L, AUTHOR_EMAIL, null, null);
 
         ArgumentCaptor<UserRoute> saved = ArgumentCaptor.forClass(UserRoute.class);
         verify(userRouteRepository).save(saved.capture());
@@ -111,6 +114,41 @@ class UserRouteServiceImplTourSpotTest {
         });
         // 저장 시점에는 조회하지 않는다.
         verifyNoInteractions(tourSpotLookupService);
+    }
+
+    @Test
+    void convertingSelectedSpotsKeepsOnlyThoseInGivenOrder() {
+        User author = mock(User.class);
+        when(userRepository.findByEmail(AUTHOR_EMAIL)).thenReturn(Optional.of(author));
+        when(pilgrimageService.getRouteSummary(7L)).thenReturn(summary());
+        when(userRouteRepository.save(any(UserRoute.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        userRouteService.createFromPilgrimage(7L, AUTHOR_EMAIL, null, List.of("333", "111", "333"));
+
+        ArgumentCaptor<UserRoute> saved = ArgumentCaptor.forClass(UserRoute.class);
+        verify(userRouteRepository).save(saved.capture());
+        // 화면에서 고른 순서를 따르고 중복은 뺀다.
+        assertThat(saved.getValue().getWaypoints())
+                .extracting(UserRouteWaypoint::getContentId)
+                .containsExactly("333", "111");
+        assertThat(saved.getValue().getWaypoints())
+                .extracting(UserRouteWaypoint::getSequenceOrder)
+                .containsExactly(1, 2);
+        assertThat(saved.getValue().getTitle()).isEqualTo("속초 순례길");
+        // 고른 스팟을 옮길 때는 스팟을 관광 API로 새로 찾는 느린 상세 조회를 하지 않는다.
+        verify(pilgrimageService, never()).getRouteDetail(any());
+    }
+
+    @Test
+    void convertingWithEmptySelectionIsRejected() {
+        User author = mock(User.class);
+        when(userRepository.findByEmail(AUTHOR_EMAIL)).thenReturn(Optional.of(author));
+        when(pilgrimageService.getRouteSummary(7L)).thenReturn(summary());
+
+        assertThatThrownBy(() -> userRouteService.createFromPilgrimage(7L, AUTHOR_EMAIL, null, List.of("  ")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("하나 이상");
+        verify(userRouteRepository, never()).save(any());
     }
 
     @Test
@@ -183,6 +221,10 @@ class UserRouteServiceImplTourSpotTest {
                 .isEqualTo(TOUR_PHOTO);
         // 목록은 게시물마다 불리므로, 표지를 찾으면 나머지 스팟은 조회하지 않는다.
         verify(tourSpotLookupService, times(1)).find(anyString());
+    }
+
+    private static PilgrimageRouteSummaryDto summary() {
+        return PilgrimageRouteSummaryDto.builder().id(7L).name("속초 순례길").description("설명").build();
     }
 
     private static UserRouteWaypoint tourWaypoint(int sequenceOrder, String contentId) {

@@ -10,7 +10,8 @@ public interface RouteJourneyService {
     // 추적을 시작할 수 있는 후보 경로들 (저장한 AI 순례길 + 내가 올렸거나 스크랩한 게시물)
     List<TrackableRouteDto> getTrackableRoutes(String userEmail);
 
-    RouteJourneyDetailDto startJourney(String userEmail, String sourceType, Long sourceId);
+    /// AI 순례길은 contentIds로 고른 스팟만 추적할 수 있다. null이면 모든 스팟. 게시물(USER_ROUTE)은 무시한다.
+    RouteJourneyDetailDto startJourney(String userEmail, String sourceType, Long sourceId, List<String> contentIds);
 
     // 진행 중인 여정이 없으면 null
     RouteJourneyDetailDto getActiveJourney(String userEmail);

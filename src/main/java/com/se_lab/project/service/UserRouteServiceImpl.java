@@ -3,6 +3,7 @@ package com.se_lab.project.service;
 import com.se_lab.project.dto.BasePlaceDto;
 import com.se_lab.project.dto.Coordinate;
 import com.se_lab.project.dto.PilgrimageRouteDetailDto;
+import com.se_lab.project.dto.PilgrimageRouteSummaryDto;
 import com.se_lab.project.dto.PilgrimageSegmentDto;
 import com.se_lab.project.dto.UserRouteCommentDto;
 import com.se_lab.project.dto.UserRouteDetailDto;
@@ -164,36 +165,48 @@ public class UserRouteServiceImpl implements UserRouteService {
 
     @Override
     @Transactional
-    public Long createFromPilgrimage(Long pilgrimageRouteId, String authorEmail, String routeType) {
+    public Long createFromPilgrimage(Long pilgrimageRouteId, String authorEmail, String routeType, List<String> contentIds) {
         User author = findUser(authorEmail);
-        // 구간별 스팟은 PilgrimageRoute 엔티티 자체엔 저장돼 있지 않고 상세 조회 시 매번
-        // 관광 API로 다시 찾아오므로, 그 로직을 그대로 재사용해서 실제 웨이포인트 후보를 얻는다.
-        PilgrimageRouteDetailDto pilgrimage = pilgrimageService.getRouteDetail(pilgrimageRouteId);
+
+        String title;
+        String description;
+        List<String> spotIds;
+        if (contentIds != null) {
+            // 사용자가 상세 화면에서 고른 스팟만, 화면에 보인 순서대로 옮긴다.
+            // 상세를 다시 조회하지 않는다 — 스팟을 관광 API로 새로 찾느라 느리고,
+            // 그 사이 결과가 바뀌면 사용자가 고른 스팟이 빠질 수 있다.
+            PilgrimageRouteSummaryDto pilgrimage = pilgrimageService.getRouteSummary(pilgrimageRouteId);
+            title = pilgrimage.getName();
+            description = pilgrimage.getDescription();
+            spotIds = TourSpotLookupService.selectedIds(contentIds);
+        } else {
+            // 구간별 스팟은 PilgrimageRoute 엔티티 자체엔 저장돼 있지 않고 상세 조회 시 매번
+            // 관광 API로 다시 찾아오므로, 그 로직을 그대로 재사용해서 실제 웨이포인트 후보를 얻는다.
+            PilgrimageRouteDetailDto pilgrimage = pilgrimageService.getRouteDetail(pilgrimageRouteId);
+            title = pilgrimage.getName();
+            description = pilgrimage.getDescription();
+            spotIds = allSpotIds(pilgrimage);
+        }
 
         UserRoute route = UserRoute.builder()
                 .author(author)
-                .title(pilgrimage.getName())
-                .description(pilgrimage.getDescription())
+                .title(title)
+                .description(description)
                 .routeType(routeType != null ? routeType : "PILGRIMAGE")
                 .build();
 
         int sequence = 1;
-        for (PilgrimageSegmentDto segment : pilgrimage.getSegments()) {
-            for (BasePlaceDto spot : segment.getSpots()) {
-                // 콘텐츠 ID가 없으면 나중에 다시 조회할 방법이 없으므로 옮기지 않는다.
-                if (spot.getContentId() == null || spot.getContentId().isBlank()) continue;
-
-                // 한국관광공사 규정상 관광 데이터는 로컬에 저장하지 않고 실시간으로 호출해야 한다.
-                // 그래서 콘텐츠 ID만 남기고, NOT NULL 칸은 관광 정보가 아닌 빈 값으로 채운다.
-                // 실제 제목·주소·좌표·사진은 보여줄 때 이 ID로 조회한다.
-                route.addWaypoint(UserRouteWaypoint.builder()
-                        .sequenceOrder(sequence++)
-                        .contentId(spot.getContentId())
-                        .title("")
-                        .lat(0)
-                        .lng(0)
-                        .build());
-            }
+        for (String contentId : spotIds) {
+            // 한국관광공사 규정상 관광 데이터는 로컬에 저장하지 않고 실시간으로 호출해야 한다.
+            // 그래서 콘텐츠 ID만 남기고, NOT NULL 칸은 관광 정보가 아닌 빈 값으로 채운다.
+            // 실제 제목·주소·좌표·사진은 보여줄 때 이 ID로 조회한다.
+            route.addWaypoint(UserRouteWaypoint.builder()
+                    .sequenceOrder(sequence++)
+                    .contentId(contentId)
+                    .title("")
+                    .lat(0)
+                    .lng(0)
+                    .build());
         }
 
         if (route.getWaypoints().isEmpty()) {
@@ -201,6 +214,19 @@ public class UserRouteServiceImpl implements UserRouteService {
         }
 
         return userRouteRepository.save(route).getId();
+    }
+
+    // 콘텐츠 ID가 없는 스팟은 나중에 다시 조회할 방법이 없으므로 뺀다.
+    private static List<String> allSpotIds(PilgrimageRouteDetailDto pilgrimage) {
+        List<String> ids = new ArrayList<>();
+        for (PilgrimageSegmentDto segment : pilgrimage.getSegments()) {
+            for (BasePlaceDto spot : segment.getSpots()) {
+                if (spot.getContentId() != null && !spot.getContentId().isBlank()) {
+                    ids.add(spot.getContentId());
+                }
+            }
+        }
+        return ids;
     }
 
     @Override

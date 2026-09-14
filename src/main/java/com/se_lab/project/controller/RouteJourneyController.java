@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -25,20 +26,22 @@ public class RouteJourneyController {
     }
 
     @PostMapping
-    public ResponseEntity<?> startJourney(@RequestBody Map<String, String> body) {
+    public ResponseEntity<?> startJourney(@RequestBody Map<String, Object> body) {
         String email = AuthUtil.requireLoggedIn();
         if (email == null) return unauthorized();
 
-        String sourceType = body.get("sourceType");
+        String sourceType = body.get("sourceType") instanceof String type ? type : null;
         Long sourceId;
         try {
-            sourceId = Long.valueOf(body.get("sourceId"));
-        } catch (NumberFormatException | NullPointerException e) {
+            sourceId = Long.valueOf(String.valueOf(body.get("sourceId")));
+        } catch (NumberFormatException e) {
             return ResponseEntity.badRequest().body(Map.of("message", "sourceId가 올바르지 않습니다."));
         }
 
         try {
-            return ResponseEntity.ok(routeJourneyService.startJourney(email, sourceType, sourceId));
+            // AI 순례길은 상세 화면에서 고른 스팟만 추적할 수 있다. 없으면 모든 스팟.
+            List<String> contentIds = contentIdsFrom(body);
+            return ResponseEntity.ok(routeJourneyService.startJourney(email, sourceType, sourceId, contentIds));
         } catch (EntityNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (IllegalStateException e) {
@@ -46,6 +49,16 @@ public class RouteJourneyController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
+    }
+
+    /// 요청 본문의 contentIds. 없으면 null, 목록이 아니면 IllegalArgumentException.
+    private static List<String> contentIdsFrom(Map<String, Object> body) {
+        Object value = body.get("contentIds");
+        if (value == null) return null;
+        if (!(value instanceof List<?> list)) {
+            throw new IllegalArgumentException("contentIds는 목록이어야 합니다.");
+        }
+        return list.stream().filter(item -> item != null).map(String::valueOf).toList();
     }
 
     @GetMapping("/active")

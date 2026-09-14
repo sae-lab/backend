@@ -34,7 +34,28 @@ public class TourSpotLookupService {
         return thread;
     });
 
+    // 사용자가 한 번에 고를 수 있는 스팟 수. 순례길 스팟은 보통 20개 안팎이다.
+    private static final int MAX_SELECTED_SPOTS = 50;
+
     private final TourApiService tourApiService;
+
+    /// 사용자가 고른 콘텐츠 ID를 정리한다. 빈 값을 빼고, 중복은 처음 나온 자리만 남긴다.
+    public static List<String> selectedIds(Collection<String> contentIds) {
+        List<String> ids = contentIds.stream()
+                .filter(id -> id != null)
+                .map(String::trim)
+                .filter(id -> !id.isEmpty())
+                .distinct()
+                .toList();
+
+        if (ids.isEmpty()) {
+            throw new IllegalStateException("스팟을 하나 이상 골라주세요.");
+        }
+        if (ids.size() > MAX_SELECTED_SPOTS) {
+            throw new IllegalStateException("스팟은 최대 " + MAX_SELECTED_SPOTS + "곳까지 고를 수 있습니다.");
+        }
+        return ids;
+    }
 
     /// 화면과 도착 판정에 쓰는 관광지 값.
     public record TourSpot(String contentId, String title, String address,

@@ -286,6 +286,13 @@ public class PilgrimageServiceImpl implements PilgrimageService {
         return place -> seen.add(place.getTitle());
     }
 
+    @Override
+    public PilgrimageRouteSummaryDto getRouteSummary(Long id) {
+        PilgrimageRoute route = pilgrimageRouteRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("순례길을 찾을 수 없습니다: " + id));
+        return toSummaryDto(route);
+    }
+
     private PilgrimageRouteSummaryDto toSummaryDto(PilgrimageRoute route) {
         List<PilgrimageSegment> segments = route.getSegments();
 
