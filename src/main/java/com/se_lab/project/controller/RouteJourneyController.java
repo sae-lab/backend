@@ -58,25 +58,46 @@ public class RouteJourneyController {
         return ResponseEntity.ok(active);
     }
 
-    @PostMapping("/{id}/ping")
-    public ResponseEntity<?> ping(@PathVariable Long id, @RequestBody Map<String, Double> body) {
+    /// 앱이 판정한 스팟 도착. 사용자 좌표는 받지 않는다 (#57).
+    @PostMapping("/{id}/checkpoints/{sequenceOrder}/visit")
+    public ResponseEntity<?> visitCheckpoint(@PathVariable Long id, @PathVariable int sequenceOrder) {
         String email = AuthUtil.requireLoggedIn();
         if (email == null) return unauthorized();
 
-        Double lat = body.get("lat");
-        Double lng = body.get("lng");
-        if (lat == null || lng == null) {
-            return ResponseEntity.badRequest().body(Map.of("message", "lat/lng가 필요합니다."));
-        }
-
         try {
-            return ResponseEntity.ok(routeJourneyService.ping(email, id, lat, lng));
+            return ResponseEntity.ok(routeJourneyService.markCheckpointVisited(email, id, sequenceOrder));
         } catch (EntityNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (AccessDeniedException e) {
             return ResponseEntity.status(403).body(Map.of("message", e.getMessage()));
         } catch (IllegalStateException e) {
             return ResponseEntity.status(409).body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    /// 앱이 계산한 누적 걸은 거리(km)·시간(초).
+    @PutMapping("/{id}/progress")
+    public ResponseEntity<?> saveProgress(@PathVariable Long id, @RequestBody Map<String, Number> body) {
+        String email = AuthUtil.requireLoggedIn();
+        if (email == null) return unauthorized();
+
+        Number walkedDistanceKm = body.get("walkedDistanceKm");
+        Number elapsedSeconds = body.get("elapsedSeconds");
+        if (walkedDistanceKm == null || elapsedSeconds == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "walkedDistanceKm/elapsedSeconds가 필요합니다."));
+        }
+
+        try {
+            routeJourneyService.saveProgress(email, id, walkedDistanceKm.doubleValue(), elapsedSeconds.longValue());
+            return ResponseEntity.noContent().build();
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (AccessDeniedException e) {
+            return ResponseEntity.status(403).body(Map.of("message", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(409).body(Map.of("message", e.getMessage()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
 

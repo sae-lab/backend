@@ -2,7 +2,6 @@ package com.se_lab.project.service;
 
 import com.se_lab.project.dto.BasePlaceDto;
 import com.se_lab.project.dto.Coordinate;
-import com.se_lab.project.dto.CourseDetailDto;
 import com.se_lab.project.dto.PilgrimageRouteDetailDto;
 import com.se_lab.project.dto.PilgrimageSegmentDto;
 import com.se_lab.project.dto.UserRouteDetailDto;
@@ -16,6 +15,7 @@ import com.se_lab.project.repository.UserRouteCommentRepository;
 import com.se_lab.project.repository.UserRouteLikeRepository;
 import com.se_lab.project.repository.UserRouteRepository;
 import com.se_lab.project.repository.UserRouteScrapRepository;
+import com.se_lab.project.service.TourSpotLookupService.TourSpot;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -24,6 +24,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -66,7 +67,7 @@ class UserRouteServiceImplTourSpotTest {
     @Mock
     private NotificationService notificationService;
     @Mock
-    private TourApiService tourApiService;
+    private TourSpotLookupService tourSpotLookupService;
 
     @InjectMocks
     private UserRouteServiceImpl userRouteService;
@@ -109,7 +110,7 @@ class UserRouteServiceImplTourSpotTest {
             assertThat(waypoint.getPhotoUrl()).isNull();
         });
         // 저장 시점에는 조회하지 않는다.
-        verifyNoInteractions(tourApiService);
+        verifyNoInteractions(tourSpotLookupService);
     }
 
     @Test
@@ -119,12 +120,12 @@ class UserRouteServiceImplTourSpotTest {
                 .sequenceOrder(1).title("내가 찍은 곳").memo("메모")
                 .lat(38.20).lng(128.59).photoUrl("/uploads/user-routes/me.jpg")
                 .build());
-        route.addWaypoint(tourSpot(2, "126508"));
-        route.addWaypoint(tourSpot(3, "999999"));
+        route.addWaypoint(tourWaypoint(2, "126508"));
+        route.addWaypoint(tourWaypoint(3, "999999"));
         when(userRouteRepository.findById(1L)).thenReturn(Optional.of(route));
-        when(tourApiService.getPlaceDetail("126508")).thenReturn(
-                new CourseDetailDto("영랑호", "강원특별자치도 속초시", 38.21, 128.58, TOUR_PHOTO, "126508", "설명"));
-        when(tourApiService.getPlaceDetail("999999")).thenReturn(null);
+        // 999999는 조회에 실패해 결과에 없다.
+        when(tourSpotLookupService.findAll(any())).thenReturn(Map.of(
+                "126508", new TourSpot("126508", "영랑호", "강원특별자치도 속초시", 38.21, 128.58, TOUR_PHOTO)));
 
         UserRouteDetailDto detail = userRouteService.getRouteDetail(1L, null);
 
@@ -148,13 +149,12 @@ class UserRouteServiceImplTourSpotTest {
     @Test
     void walkingPathUsesLiveCoordinatesOfTourSpots() {
         UserRoute route = UserRoute.builder().author(mock(User.class)).title("속초 순례길").build();
-        route.addWaypoint(tourSpot(1, "111"));
-        route.addWaypoint(tourSpot(2, "222"));
+        route.addWaypoint(tourWaypoint(1, "111"));
+        route.addWaypoint(tourWaypoint(2, "222"));
         when(userRouteRepository.findById(1L)).thenReturn(Optional.of(route));
-        when(tourApiService.getPlaceDetail("111")).thenReturn(
-                new CourseDetailDto("A", "주소", 38.21, 128.58, TOUR_PHOTO, "111", ""));
-        when(tourApiService.getPlaceDetail("222")).thenReturn(
-                new CourseDetailDto("B", "주소", 38.30, 128.60, TOUR_PHOTO, "222", ""));
+        when(tourSpotLookupService.findAll(any())).thenReturn(Map.of(
+                "111", new TourSpot("111", "A", "주소", 38.21, 128.58, TOUR_PHOTO),
+                "222", new TourSpot("222", "B", "주소", 38.30, 128.60, TOUR_PHOTO)));
         // 도보 경로 API가 비어 오면 직선으로 잇는다.
         when(osrmWalkingDirectionsService.getWalkingPath(anyDouble(), anyDouble(), anyDouble(), anyDouble()))
                 .thenReturn(List.of());
@@ -169,12 +169,12 @@ class UserRouteServiceImplTourSpotTest {
     @Test
     void feedCoverLooksUpOnlyUntilItFindsAPhoto() {
         UserRoute route = UserRoute.builder().author(mock(User.class)).title("속초 순례길").build();
-        route.addWaypoint(tourSpot(1, "111"));
-        route.addWaypoint(tourSpot(2, "222"));
-        route.addWaypoint(tourSpot(3, "333"));
+        route.addWaypoint(tourWaypoint(1, "111"));
+        route.addWaypoint(tourWaypoint(2, "222"));
+        route.addWaypoint(tourWaypoint(3, "333"));
         when(userRouteRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(route));
-        when(tourApiService.getPlaceDetail("111")).thenReturn(
-                new CourseDetailDto("A", "주소", 38.21, 128.58, TOUR_PHOTO, "111", ""));
+        when(tourSpotLookupService.find("111")).thenReturn(
+                Optional.of(new TourSpot("111", "A", "주소", 38.21, 128.58, TOUR_PHOTO)));
 
         List<UserRouteSummaryDto> feed = userRouteService.getAllRoutes(null, null, null);
 
@@ -182,10 +182,10 @@ class UserRouteServiceImplTourSpotTest {
                 .extracting(UserRouteSummaryDto::getThumbnailUrl)
                 .isEqualTo(TOUR_PHOTO);
         // 목록은 게시물마다 불리므로, 표지를 찾으면 나머지 스팟은 조회하지 않는다.
-        verify(tourApiService, times(1)).getPlaceDetail(anyString());
+        verify(tourSpotLookupService, times(1)).find(anyString());
     }
 
-    private static UserRouteWaypoint tourSpot(int sequenceOrder, String contentId) {
+    private static UserRouteWaypoint tourWaypoint(int sequenceOrder, String contentId) {
         return UserRouteWaypoint.builder()
                 .sequenceOrder(sequenceOrder)
                 .contentId(contentId)
