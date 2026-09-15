@@ -19,6 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 @Service
@@ -44,6 +47,24 @@ public class PilgrimageServiceImpl implements PilgrimageService {
     private final OsrmWalkingDirectionsService osrmWalkingDirectionsService;
     private final java.util.Random random = new java.util.Random();
 
+    // 순례길 상세는 구간마다 관광 API를 5번, 도보 경로 API를 기준 경로와 다리마다 부른다.
+    // 구간과 호출을 하나씩 차례로 기다리면 상세 한 번에 8초 가까이 걸려서 동시에 부른다.
+    //
+    // 구간 작업은 안쪽 호출이 끝나기를 기다리며 스레드를 붙잡고 있으므로, 같은 풀을 쓰면
+    // 서로를 기다리다 멈출 수 있어 풀을 나눈다. 공개 OSRM 서버는 짧은 시간에 요청이 몰리면
+    // 거절하므로 도보 경로 호출은 동시에 2개까지만 보낸다. 모두 데몬 스레드라 서버 종료를 붙잡지 않는다.
+    private static final ExecutorService SEGMENT_POOL = daemonPool("pilgrimage-segment", 4);
+    private static final ExecutorService TOUR_CALL_POOL = daemonPool("pilgrimage-tour-call", 8);
+    private static final ExecutorService ROUTING_CALL_POOL = daemonPool("pilgrimage-routing-call", 2);
+
+    private static ExecutorService daemonPool(String name, int size) {
+        return Executors.newFixedThreadPool(size, runnable -> {
+            Thread thread = new Thread(runnable, name);
+            thread.setDaemon(true);
+            return thread;
+        });
+    }
+
     @Override
     public List<PilgrimageRouteSummaryDto> getAllRoutes() {
         return pilgrimageRouteRepository.findAll().stream()
@@ -56,8 +77,13 @@ public class PilgrimageServiceImpl implements PilgrimageService {
         PilgrimageRoute route = pilgrimageRouteRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("순례길을 찾을 수 없습니다: " + id));
 
-        List<PilgrimageSegmentDto> segmentDtos = route.getSegments().stream()
-                .map(segment -> toSegmentDto(segment, route.getCategory()))
+        // 구간 목록은 요청 스레드에서 불러 두고, 다른 스레드에서는 이미 읽힌 값만 쓴다(지연 로딩 없음).
+        String category = route.getCategory();
+        List<CompletableFuture<PilgrimageSegmentDto>> futures = route.getSegments().stream()
+                .map(segment -> CompletableFuture.supplyAsync(() -> toSegmentDto(segment, category), SEGMENT_POOL))
+                .toList();
+        List<PilgrimageSegmentDto> segmentDtos = futures.stream()
+                .map(CompletableFuture::join)
                 .collect(Collectors.toList());
 
         return PilgrimageRouteDetailDto.builder()
@@ -189,8 +215,8 @@ public class PilgrimageServiceImpl implements PilgrimageService {
 
     /// 출발지 -> 스팟들 -> 도착지를 차례로 이어 실제 도보 경로를 만든다.
     ///
-    /// 다리(leg)마다 외부 경로 API를 부르므로 스팟이 많으면 그만큼 느려진다.
-    /// 그래서 경유할 스팟 수를 제한하고, 넘치면 기준 경로를 그대로 쓴다.
+    /// 다리(leg)마다 외부 경로 API를 부르므로 다리들을 동시에 부르고, 결과는 순서대로 잇는다.
+    /// 그래도 스팟이 많으면 느려져서 경유할 스팟 수를 제한하고, 넘치면 기준 경로를 그대로 쓴다.
     /// 한 다리라도 실패하면 그 구간만 직선으로 잇는다.
     private List<Coordinate> routeThroughSpots(PilgrimageSegment segment,
                                                List<BasePlaceDto> spots,
@@ -207,17 +233,20 @@ public class PilgrimageServiceImpl implements PilgrimageService {
                 Coordinate.builder().lat(s.getLatitude()).lng(s.getLongitude()).build()));
         stops.add(Coordinate.builder().lat(segment.getToLat()).lng(segment.getToLng()).build());
 
-        List<Coordinate> path = new java.util.ArrayList<>();
+        List<CompletableFuture<List<Coordinate>>> legs = new java.util.ArrayList<>();
         for (int i = 0; i < stops.size() - 1; i++) {
             Coordinate from = stops.get(i);
             Coordinate to = stops.get(i + 1);
+            legs.add(CompletableFuture.supplyAsync(() -> osrmWalkingDirectionsService.getWalkingPath(
+                    from.getLat(), from.getLng(), to.getLat(), to.getLng()), ROUTING_CALL_POOL));
+        }
 
-            List<Coordinate> leg = osrmWalkingDirectionsService.getWalkingPath(
-                    from.getLat(), from.getLng(), to.getLat(), to.getLng());
-
+        List<Coordinate> path = new java.util.ArrayList<>();
+        for (int i = 0; i < legs.size(); i++) {
+            List<Coordinate> leg = legs.get(i).join();
             if (leg.isEmpty()) {
-                path.add(from);
-                path.add(to);
+                path.add(stops.get(i));
+                path.add(stops.get(i + 1));
             } else {
                 path.addAll(leg);
             }
@@ -228,8 +257,10 @@ public class PilgrimageServiceImpl implements PilgrimageService {
     private List<Coordinate> routePath(PilgrimageSegment segment) {
         // 1순위: OSRM 도보 프로필(실제 걷는 경로). 2순위: 카카오 자동차 경로.
         // 3순위: 직선. 거리/난이도/소요시간 계산에는 어느 쪽이든 영향 없음(직선거리 기반 유지).
-        List<Coordinate> path = osrmWalkingDirectionsService.getWalkingPath(
-                segment.getFromLat(), segment.getFromLng(), segment.getToLat(), segment.getToLng());
+        // OSRM 호출은 다른 구간과 합쳐 동시 요청 수를 제한하려고 같은 풀로 보낸다.
+        List<Coordinate> path = CompletableFuture.supplyAsync(() -> osrmWalkingDirectionsService.getWalkingPath(
+                segment.getFromLat(), segment.getFromLng(), segment.getToLat(), segment.getToLng()),
+                ROUTING_CALL_POOL).join();
         if (!path.isEmpty()) return path;
 
         path = kakaoDirectionsService.getRoutePath(
@@ -264,10 +295,16 @@ public class PilgrimageServiceImpl implements PilgrimageService {
             searchPoints.addAll(sampleWaypoints(path));
             searchPoints.add(Coordinate.builder().lat(segment.getToLat()).lng(segment.getToLng()).build());
 
+            // 검색 지점마다 관광 API를 동시에 부르고, 결과는 검색 지점 순서(출발 → 도착)대로 합친다.
+            // 순서를 지켜야 제목 중복 제거와 개수 제한이 차례로 불렀을 때와 같은 결과를 낸다.
+            List<CompletableFuture<List<BasePlaceDto>>> lookups = searchPoints.stream()
+                    .map(point -> CompletableFuture.supplyAsync(() -> tourApiService.getNearbyPlaces(
+                            String.valueOf(point.getLng()), String.valueOf(point.getLat()), category), TOUR_CALL_POOL))
+                    .toList();
+
             List<BasePlaceDto> merged = new java.util.ArrayList<>();
-            for (Coordinate point : searchPoints) {
-                List<BasePlaceDto> nearby = tourApiService.getNearbyPlaces(
-                        String.valueOf(point.getLng()), String.valueOf(point.getLat()), category);
+            for (CompletableFuture<List<BasePlaceDto>> lookup : lookups) {
+                List<BasePlaceDto> nearby = lookup.join();
                 if (nearby != null) merged.addAll(nearby);
             }
 

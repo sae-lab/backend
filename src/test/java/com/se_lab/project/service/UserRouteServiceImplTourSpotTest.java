@@ -205,22 +205,29 @@ class UserRouteServiceImplTourSpotTest {
     }
 
     @Test
-    void feedCoverLooksUpOnlyUntilItFindsAPhoto() {
-        UserRoute route = UserRoute.builder().author(mock(User.class)).title("속초 순례길").build();
-        route.addWaypoint(tourWaypoint(1, "111"));
-        route.addWaypoint(tourWaypoint(2, "222"));
-        route.addWaypoint(tourWaypoint(3, "333"));
-        when(userRouteRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(route));
-        when(tourSpotLookupService.find("111")).thenReturn(
-                Optional.of(new TourSpot("111", "A", "주소", 38.21, 128.58, TOUR_PHOTO)));
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void feedLooksUpCoversForAllPostsInOneBatchWithAtMostTwoSpotsEach() {
+        UserRoute tourRoute = UserRoute.builder().author(mock(User.class)).title("속초 순례길").build();
+        tourRoute.addWaypoint(tourWaypoint(1, "111"));
+        tourRoute.addWaypoint(tourWaypoint(2, "222"));
+        tourRoute.addWaypoint(tourWaypoint(3, "333"));
+        UserRoute ownPhotoRoute = UserRoute.builder().author(mock(User.class)).title("집 앞 산책").build();
+        ownPhotoRoute.addWaypoint(UserRouteWaypoint.builder()
+                .sequenceOrder(1).title("집 앞").lat(38.2).lng(128.5).photoUrl("/uploads/me.jpg").build());
+        when(userRouteRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(tourRoute, ownPhotoRoute));
+        // 111은 사진을 못 받아왔고 222에서 찾는다.
+        when(tourSpotLookupService.findAll(any())).thenReturn(Map.of(
+                "222", new TourSpot("222", "B", "주소", 38.21, 128.58, TOUR_PHOTO)));
 
         List<UserRouteSummaryDto> feed = userRouteService.getAllRoutes(null, null, null);
 
-        assertThat(feed).singleElement()
+        assertThat(feed)
                 .extracting(UserRouteSummaryDto::getThumbnailUrl)
-                .isEqualTo(TOUR_PHOTO);
-        // 목록은 게시물마다 불리므로, 표지를 찾으면 나머지 스팟은 조회하지 않는다.
-        verify(tourSpotLookupService, times(1)).find(anyString());
+                .containsExactly(TOUR_PHOTO, "/uploads/me.jpg");
+        // 게시물마다 따로 부르지 않고 목록 전체를 한 번에, 게시물당 앞쪽 관광지 두 곳까지만 조회한다.
+        ArgumentCaptor<java.util.Collection<String>> ids = (ArgumentCaptor) ArgumentCaptor.forClass(java.util.Collection.class);
+        verify(tourSpotLookupService, times(1)).findAll(ids.capture());
+        assertThat(ids.getValue()).containsExactly("111", "222");
     }
 
     private static PilgrimageRouteSummaryDto summary() {

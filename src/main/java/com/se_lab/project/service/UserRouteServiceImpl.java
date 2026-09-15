@@ -31,9 +31,14 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -66,10 +71,7 @@ public class UserRouteServiceImpl implements UserRouteService {
         List<UserRoute> routes = routeType == null
                 ? userRouteRepository.findAllByOrderByCreatedAtDesc()
                 : userRouteRepository.findAllByRouteTypeOrderByCreatedAtDesc(routeType);
-        List<UserRouteSummaryDto> dtos = routes.stream()
-                .map(route -> toSummaryDto(route, currentUser))
-                .collect(Collectors.toList());
-        return sortSummaries(dtos, sort);
+        return sortSummaries(toSummaryDtos(routes, currentUser), sort);
     }
 
     @Override
@@ -78,19 +80,17 @@ public class UserRouteServiceImpl implements UserRouteService {
         List<UserRoute> routes = routeType == null
                 ? userRouteRepository.findByAuthorOrderByCreatedAtDesc(author)
                 : userRouteRepository.findByAuthorAndRouteTypeOrderByCreatedAtDesc(author, routeType);
-        return routes.stream()
-                .map(route -> toSummaryDto(route, author))
-                .collect(Collectors.toList());
+        return toSummaryDtos(routes, author);
     }
 
     @Override
     public List<UserRouteSummaryDto> getMyScraps(String userEmail, String routeType) {
         User user = findUser(userEmail);
-        return userRouteScrapRepository.findByUserOrderByScrapedAtDesc(user).stream()
+        List<UserRoute> routes = userRouteScrapRepository.findByUserOrderByScrapedAtDesc(user).stream()
                 .map(UserRouteScrap::getRoute)
                 .filter(route -> routeType == null || routeType.equals(route.getRouteType()))
-                .map(route -> toSummaryDto(route, user))
-                .collect(Collectors.toList());
+                .toList();
+        return toSummaryDtos(routes, user);
     }
 
     private List<UserRouteSummaryDto> sortSummaries(List<UserRouteSummaryDto> dtos, String sort) {
@@ -465,51 +465,105 @@ public class UserRouteServiceImpl implements UserRouteService {
         userRouteCommentRepository.delete(comment);
     }
 
-    private UserRouteSummaryDto toSummaryDto(UserRoute route, User currentUser) {
-        long likeCount = userRouteLikeRepository.countByRoute(route);
-        long commentCount = userRouteCommentRepository.countByRoute(route);
-        boolean likedByMe = currentUser != null && userRouteLikeRepository.existsByUserAndRoute(currentUser, route);
-        long scrapCount = userRouteScrapRepository.countByRoute(route);
-        boolean scrapedByMe = currentUser != null && userRouteScrapRepository.existsByUserAndRoute(currentUser, route);
+    /// 목록 화면의 게시물 요약을 한꺼번에 만든다.
+    ///
+    /// 게시물마다 좋아요·댓글·저장 수와 "내가 눌렀는지"를 따로 세면 게시물 수 × 5번 쿼리가 나간다.
+    /// 목록 전체를 종류마다 한 번씩만 세고, 관광지 표지 사진도 한꺼번에 동시에 조회한다.
+    /// 작성자와 웨이포인트는 목록을 가져올 때 함께 불러온다 (UserRouteRepository).
+    private List<UserRouteSummaryDto> toSummaryDtos(List<UserRoute> routes, User currentUser) {
+        if (routes.isEmpty()) return new ArrayList<>();
 
-        return UserRouteSummaryDto.builder()
-                .id(route.getId())
-                .title(route.getTitle())
-                .description(route.getDescription())
-                .routeType(route.getRouteType())
-                .authorName(route.getAuthor().getDisplayName())
-                .authorProfileImageUrl(route.getAuthor().getProfileImageUrl())
-                .createdAt(route.getCreatedAt())
-                .thumbnailUrl(coverPhoto(route.getWaypoints()))
-                .waypointCount(route.getWaypoints().size())
-                .likeCount(likeCount)
-                .commentCount(commentCount)
-                .likedByMe(likedByMe)
-                .scrapCount(scrapCount)
-                .scrapedByMe(scrapedByMe)
-                .build();
+        Map<Long, Long> likeCounts = toCountMap(userRouteLikeRepository.countByRoutes(routes));
+        Map<Long, Long> commentCounts = toCountMap(userRouteCommentRepository.countByRoutes(routes));
+        Map<Long, Long> scrapCounts = toCountMap(userRouteScrapRepository.countByRoutes(routes));
+        Set<Long> likedIds = currentUser == null
+                ? new HashSet<>()
+                : new HashSet<>(userRouteLikeRepository.findRouteIdsByUserAndRoutes(currentUser, routes));
+        Set<Long> scrapedIds = currentUser == null
+                ? new HashSet<>()
+                : new HashSet<>(userRouteScrapRepository.findRouteIdsByUserAndRoutes(currentUser, routes));
+        Map<UserRoute, String> covers = coverPhotos(routes);
+
+        List<UserRouteSummaryDto> dtos = new ArrayList<>(routes.size());
+        for (UserRoute route : routes) {
+            Long id = route.getId();
+            dtos.add(UserRouteSummaryDto.builder()
+                    .id(id)
+                    .title(route.getTitle())
+                    .description(route.getDescription())
+                    .routeType(route.getRouteType())
+                    .authorName(route.getAuthor().getDisplayName())
+                    .authorProfileImageUrl(route.getAuthor().getProfileImageUrl())
+                    .createdAt(route.getCreatedAt())
+                    .thumbnailUrl(covers.getOrDefault(route, ""))
+                    .waypointCount(route.getWaypoints().size())
+                    .likeCount(likeCounts.getOrDefault(id, 0L))
+                    .commentCount(commentCounts.getOrDefault(id, 0L))
+                    .likedByMe(likedIds.contains(id))
+                    .scrapCount(scrapCounts.getOrDefault(id, 0L))
+                    .scrapedByMe(scrapedIds.contains(id))
+                    .build());
+        }
+        return dtos;
+    }
+
+    /// [게시물 id, 개수] 행을 id → 개수로 바꾼다. 하나도 없는 게시물은 행이 없다.
+    private static Map<Long, Long> toCountMap(List<Object[]> rows) {
+        Map<Long, Long> counts = new HashMap<>();
+        for (Object[] row : rows) {
+            counts.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
+        }
+        return counts;
+    }
+
+    /// 표지 후보. 직접 올린 사진 주소이거나, 조회해야 하는 관광지 콘텐츠 ID다.
+    private record CoverCandidate(String photoUrl, String contentId) {
     }
 
     // 목록 표지. 사진 없는 웨이포인트도 허용하므로, 첫 번째가 아니라 사진이 있는 첫 웨이포인트를 쓴다.
-    // 관광지 웨이포인트는 사진을 저장하지 않아 조회해야 하는데, 목록은 게시물마다 불리니
-    // 표지를 찾을 때까지 필요한 만큼만(최대 MAX_COVER_LOOKUPS건) 조회한다.
-    // 끝내 없으면 빈 문자열을 주고 목록 화면이 대체 표지를 그린다.
-    private String coverPhoto(List<UserRouteWaypoint> waypoints) {
-        int lookups = 0;
-        for (UserRouteWaypoint waypoint : waypoints) {
-            if (!waypoint.isTourSpot()) {
+    // 관광지 웨이포인트는 사진을 저장하지 않아 조회해야 한다. 게시물마다 앞쪽 관광지 최대
+    // MAX_COVER_LOOKUPS곳만 후보로 모아, 목록 전체를 한꺼번에 동시에 조회한다.
+    // 끝내 없으면 표지를 넣지 않고 목록 화면이 대체 표지를 그린다.
+    private Map<UserRoute, String> coverPhotos(List<UserRoute> routes) {
+        Map<UserRoute, List<CoverCandidate>> candidatesByRoute = new IdentityHashMap<>();
+        Set<String> contentIds = new LinkedHashSet<>();
+
+        for (UserRoute route : routes) {
+            List<CoverCandidate> candidates = new ArrayList<>();
+            int tourSpots = 0;
+            for (UserRouteWaypoint waypoint : route.getWaypoints()) {
+                if (waypoint.isTourSpot()) {
+                    if (tourSpots++ < MAX_COVER_LOOKUPS) {
+                        candidates.add(new CoverCandidate(null, waypoint.getContentId()));
+                        contentIds.add(waypoint.getContentId());
+                    }
+                    continue;
+                }
                 String photoUrl = waypoint.getPhotoUrl();
-                if (photoUrl != null && !photoUrl.isBlank()) return photoUrl;
-                continue;
+                if (photoUrl != null && !photoUrl.isBlank()) {
+                    // 직접 올린 사진이 나오면 그 뒤 웨이포인트는 볼 필요가 없다.
+                    candidates.add(new CoverCandidate(photoUrl, null));
+                    break;
+                }
             }
-            if (lookups >= MAX_COVER_LOOKUPS) continue;
-            lookups++;
-            Optional<String> photoUrl = tourSpotLookupService.find(waypoint.getContentId())
-                    .map(TourSpot::photoUrl)
-                    .filter(url -> url != null && !url.isBlank());
-            if (photoUrl.isPresent()) return photoUrl.get();
+            candidatesByRoute.put(route, candidates);
         }
-        return "";
+
+        Map<String, TourSpot> spots = contentIds.isEmpty() ? Map.of() : tourSpotLookupService.findAll(contentIds);
+
+        Map<UserRoute, String> covers = new IdentityHashMap<>();
+        candidatesByRoute.forEach((route, candidates) -> {
+            for (CoverCandidate candidate : candidates) {
+                String url = candidate.photoUrl() != null
+                        ? candidate.photoUrl()
+                        : Optional.ofNullable(spots.get(candidate.contentId())).map(TourSpot::photoUrl).orElse(null);
+                if (url != null && !url.isBlank()) {
+                    covers.put(route, url);
+                    return;
+                }
+            }
+        });
+        return covers;
     }
 
     private UserRouteWaypointDto toWaypointDto(ResolvedWaypoint waypoint) {
