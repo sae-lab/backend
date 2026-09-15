@@ -12,15 +12,48 @@ class ImageUploadValidatorTest {
 
     private final ImageUploadValidator validator = new ImageUploadValidator(DataSize.ofMegabytes(10));
 
+    // 메타데이터를 지우려고 구조를 읽으므로, 시작 바이트만 맞는 가짜가 아니라 최소한의 JPEG를 쓴다.
+    // SOI, SOS(스캔 데이터 2바이트), EOI
+    private static final byte[] MINIMAL_JPEG = {
+            (byte) 0xFF, (byte) 0xD8,
+            (byte) 0xFF, (byte) 0xDA, 0x00, 0x02, 0x11, 0x22,
+            (byte) 0xFF, (byte) 0xD9
+    };
+
     @Test
     void acceptsJpegAndUsesDetectedType() {
-        byte[] jpeg = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x00};
-        MockMultipartFile file = new MockMultipartFile("photo", "fake.png", "application/octet-stream", jpeg);
+        MockMultipartFile file = new MockMultipartFile("photo", "fake.png", "application/octet-stream", MINIMAL_JPEG);
 
         ImageUploadValidator.ValidatedImage result = validator.validate(file);
 
         assertThat(result.contentType()).isEqualTo("image/jpeg");
         assertThat(result.extension()).isEqualTo(".jpg");
+        assertThat(result.content()).isEqualTo(MINIMAL_JPEG);
+    }
+
+    @Test
+    void storedJpegHasNoLocationMetadata() {
+        byte[] exifWithGps = {
+                (byte) 0xFF, (byte) 0xE1, 0x00, 0x14,
+                'E', 'x', 'i', 'f', 0, 0, 'I', 'I', 42, 0, 8, 0, 0, 0, 'G', 'P', 'S', '!'
+        };
+        byte[] jpeg = new byte[2 + exifWithGps.length + MINIMAL_JPEG.length - 2];
+        System.arraycopy(MINIMAL_JPEG, 0, jpeg, 0, 2);
+        System.arraycopy(exifWithGps, 0, jpeg, 2, exifWithGps.length);
+        System.arraycopy(MINIMAL_JPEG, 2, jpeg, 2 + exifWithGps.length, MINIMAL_JPEG.length - 2);
+
+        ImageUploadValidator.ValidatedImage result = validator.validate(new MockMultipartFile("photo", jpeg));
+
+        assertThat(result.content()).isEqualTo(MINIMAL_JPEG);
+    }
+
+    @Test
+    void rejectsBrokenJpegRatherThanStoringItsMetadata() {
+        byte[] broken = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x00};
+
+        assertThatThrownBy(() -> validator.validate(new MockMultipartFile("photo", broken)))
+                .isInstanceOfSatisfying(ImageUploadException.class,
+                        exception -> assertThat(exception.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST));
     }
 
     @Test

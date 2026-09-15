@@ -54,7 +54,8 @@ public class KakaoDirectionsService {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
             return parsePath(response.getBody());
         } catch (Exception e) {
-            log.warn("카카오 길찾기 경로 조회 실패 ({},{} -> {},{}): {}", fromLat, fromLng, toLat, toLng, e.getMessage());
+            // 좌표는 로그에 남기지 않는다. 사용자가 고른 출발점이 곧 위치정보일 수 있다 (#57).
+            log.warn("카카오 길찾기 경로 조회 실패: {}", e.getMessage());
             return Collections.emptyList();
         }
     }
