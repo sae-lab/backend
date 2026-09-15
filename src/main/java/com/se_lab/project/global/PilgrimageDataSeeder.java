@@ -3,13 +3,11 @@ package com.se_lab.project.global;
 import com.se_lab.project.entity.PilgrimageRoute;
 import com.se_lab.project.entity.PilgrimageSegment;
 import com.se_lab.project.repository.PilgrimageRouteRepository;
-import com.se_lab.project.service.TrailSyncService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
-import com.se_lab.project.repository.TrailRepository;
 
 @Slf4j
 @Component
@@ -18,19 +16,11 @@ import com.se_lab.project.repository.TrailRepository;
 public class PilgrimageDataSeeder implements CommandLineRunner {
 
     private final PilgrimageRouteRepository pilgrimageRouteRepository;
-    private final TrailSyncService trailSyncService;
-    private final TrailRepository trailRepository;
 
     @Override
     public void run(String... args) {
-        if (trailRepository.count() == 0) {
-            try {
-                trailSyncService.syncTrails();
-            } catch (Exception e) {
-                // 두루누비 API 키가 없거나 호출이 실패해도 앱 부팅 자체는 막지 않는다.
-                log.warn("두루누비 트레일 동기화 실패, 건너뜀 (type={})", e.getClass().getSimpleName());
-            }
-        }
+        // 두루누비 코스는 더 이상 부팅 때 DB로 받아오지 않는다.
+        // 한국관광공사 규정상 실시간 호출이 가능한 데이터는 로컬에 저장할 수 없다 (#58).
 
         String identifier = "seed-gangneung-donghae-samcheok";
 

@@ -25,7 +25,8 @@ public interface UserRouteService {
 
     // 저장해둔 AI 순례길(PilgrimageRoute)의 구간별 스팟들을 그대로 웨이포인트로 옮겨
     // 게시판 게시물로 변환한다. 사진은 사용자가 직접 찍은 게 아니라 관광 API 썸네일이다.
-    Long createFromPilgrimage(Long pilgrimageRouteId, String authorEmail, String routeType);
+    /// contentIds가 null이면 순례길의 모든 스팟을, 아니면 고른 스팟만 그 순서대로 옮긴다.
+    Long createFromPilgrimage(Long pilgrimageRouteId, String authorEmail, String routeType, List<String> contentIds);
 
     void deleteRoute(Long routeId, String requesterEmail);
 

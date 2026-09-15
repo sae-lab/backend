@@ -117,7 +117,6 @@ jobs:
             --env JWT_SECRET \
             --env API_TOKEN=ci-placeholder \
             --env TOUR_API_BASE_URL=https://apis.data.go.kr/B551011/KorService2 \
-            --env ROUTE_API_BASE_URL=https://apis.data.go.kr/B551011/Durunubi \
             --env KAKAO_API_KEY=ci-placeholder \
             --env STORAGE_TYPE=local \
             --env APP_SEED_ENABLED=false \

@@ -3,6 +3,7 @@ package com.se_lab.project.service;
 import com.se_lab.project.dto.BasePlaceDto;
 import com.se_lab.project.dto.Coordinate;
 import com.se_lab.project.dto.PilgrimageRouteDetailDto;
+import com.se_lab.project.dto.PilgrimageRouteSummaryDto;
 import com.se_lab.project.dto.PilgrimageSegmentDto;
 import com.se_lab.project.dto.UserRouteCommentDto;
 import com.se_lab.project.dto.UserRouteDetailDto;
@@ -19,8 +20,10 @@ import com.se_lab.project.repository.UserRouteLikeRepository;
 import com.se_lab.project.repository.UserRouteRepository;
 import com.se_lab.project.repository.UserRouteScrapRepository;
 import com.se_lab.project.repository.UserRepository;
+import com.se_lab.project.service.TourSpotLookupService.TourSpot;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,8 +33,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -46,10 +51,14 @@ public class UserRouteServiceImpl implements UserRouteService {
     private final PilgrimageService pilgrimageService;
     private final OsrmWalkingDirectionsService osrmWalkingDirectionsService;
     private final NotificationService notificationService;
+    private final TourSpotLookupService tourSpotLookupService;
 
     // 이보다 웨이포인트가 많으면(예: AI 순례길에서 옮겨진 대형 게시물) 다리(leg)마다
     // 외부 도보 경로 API를 부르는 비용이 너무 커져서, 재정렬만 하고 직선으로 잇는다.
     private static final int MAX_WAYPOINTS_FOR_REAL_ROUTING = 20;
+
+    // 목록 표지를 찾으려고 게시물 하나에서 조회할 관광지 수. 목록은 게시물마다 불리므로 작게 둔다.
+    private static final int MAX_COVER_LOOKUPS = 2;
 
     @Override
     public List<UserRouteSummaryDto> getAllRoutes(String currentUserEmail, String routeType, String sort) {
@@ -99,7 +108,8 @@ public class UserRouteServiceImpl implements UserRouteService {
                 .orElseThrow(() -> new EntityNotFoundException("게시글을 찾을 수 없습니다: " + id));
         User currentUser = findUserOrNull(currentUserEmail);
 
-        List<UserRouteWaypointDto> waypointDtos = route.getWaypoints().stream()
+        // 관광지 웨이포인트는 제목·좌표·사진을 저장하지 않으므로 여기서 실시간으로 채운다.
+        List<UserRouteWaypointDto> waypointDtos = resolveWaypoints(route.getWaypoints()).stream()
                 .map(this::toWaypointDto)
                 .collect(Collectors.toList());
 
@@ -155,31 +165,48 @@ public class UserRouteServiceImpl implements UserRouteService {
 
     @Override
     @Transactional
-    public Long createFromPilgrimage(Long pilgrimageRouteId, String authorEmail, String routeType) {
+    public Long createFromPilgrimage(Long pilgrimageRouteId, String authorEmail, String routeType, List<String> contentIds) {
         User author = findUser(authorEmail);
-        // 구간별 스팟은 PilgrimageRoute 엔티티 자체엔 저장돼 있지 않고 상세 조회 시 매번
-        // 관광 API로 다시 찾아오므로, 그 로직을 그대로 재사용해서 실제 웨이포인트 후보를 얻는다.
-        PilgrimageRouteDetailDto pilgrimage = pilgrimageService.getRouteDetail(pilgrimageRouteId);
+
+        String title;
+        String description;
+        List<String> spotIds;
+        if (contentIds != null) {
+            // 사용자가 상세 화면에서 고른 스팟만, 화면에 보인 순서대로 옮긴다.
+            // 상세를 다시 조회하지 않는다 — 스팟을 관광 API로 새로 찾느라 느리고,
+            // 그 사이 결과가 바뀌면 사용자가 고른 스팟이 빠질 수 있다.
+            PilgrimageRouteSummaryDto pilgrimage = pilgrimageService.getRouteSummary(pilgrimageRouteId);
+            title = pilgrimage.getName();
+            description = pilgrimage.getDescription();
+            spotIds = TourSpotLookupService.selectedIds(contentIds);
+        } else {
+            // 구간별 스팟은 PilgrimageRoute 엔티티 자체엔 저장돼 있지 않고 상세 조회 시 매번
+            // 관광 API로 다시 찾아오므로, 그 로직을 그대로 재사용해서 실제 웨이포인트 후보를 얻는다.
+            PilgrimageRouteDetailDto pilgrimage = pilgrimageService.getRouteDetail(pilgrimageRouteId);
+            title = pilgrimage.getName();
+            description = pilgrimage.getDescription();
+            spotIds = allSpotIds(pilgrimage);
+        }
 
         UserRoute route = UserRoute.builder()
                 .author(author)
-                .title(pilgrimage.getName())
-                .description(pilgrimage.getDescription())
+                .title(title)
+                .description(description)
                 .routeType(routeType != null ? routeType : "PILGRIMAGE")
                 .build();
 
         int sequence = 1;
-        for (PilgrimageSegmentDto segment : pilgrimage.getSegments()) {
-            for (BasePlaceDto spot : segment.getSpots()) {
-                route.addWaypoint(UserRouteWaypoint.builder()
-                        .sequenceOrder(sequence++)
-                        .title(spot.getTitle())
-                        .memo(spot.getAddr1())
-                        .lat(spot.getLatitude())
-                        .lng(spot.getLongitude())
-                        .photoUrl(spot.getThumbnailUrl())
-                        .build());
-            }
+        for (String contentId : spotIds) {
+            // 한국관광공사 규정상 관광 데이터는 로컬에 저장하지 않고 실시간으로 호출해야 한다.
+            // 그래서 콘텐츠 ID만 남기고, NOT NULL 칸은 관광 정보가 아닌 빈 값으로 채운다.
+            // 실제 제목·주소·좌표·사진은 보여줄 때 이 ID로 조회한다.
+            route.addWaypoint(UserRouteWaypoint.builder()
+                    .sequenceOrder(sequence++)
+                    .contentId(contentId)
+                    .title("")
+                    .lat(0)
+                    .lng(0)
+                    .build());
         }
 
         if (route.getWaypoints().isEmpty()) {
@@ -189,37 +216,51 @@ public class UserRouteServiceImpl implements UserRouteService {
         return userRouteRepository.save(route).getId();
     }
 
+    // 콘텐츠 ID가 없는 스팟은 나중에 다시 조회할 방법이 없으므로 뺀다.
+    private static List<String> allSpotIds(PilgrimageRouteDetailDto pilgrimage) {
+        List<String> ids = new ArrayList<>();
+        for (PilgrimageSegmentDto segment : pilgrimage.getSegments()) {
+            for (BasePlaceDto spot : segment.getSpots()) {
+                if (spot.getContentId() != null && !spot.getContentId().isBlank()) {
+                    ids.add(spot.getContentId());
+                }
+            }
+        }
+        return ids;
+    }
+
     @Override
     public List<Coordinate> getWalkingPath(Long routeId) {
         UserRoute route = userRouteRepository.findById(routeId)
                 .orElseThrow(() -> new EntityNotFoundException("게시물을 찾을 수 없습니다: " + routeId));
 
-        List<UserRouteWaypoint> waypoints = route.getWaypoints();
+        // 관광지 웨이포인트는 좌표를 저장하지 않으므로, 실시간으로 조회한 좌표로 경로를 만든다.
+        List<ResolvedWaypoint> waypoints = resolveWaypoints(route.getWaypoints());
         if (waypoints.size() < 2) {
             return waypoints.stream()
-                    .map(w -> Coordinate.builder().lat(w.getLat()).lng(w.getLng()).build())
+                    .map(w -> Coordinate.builder().lat(w.lat()).lng(w.lng()).build())
                     .collect(Collectors.toList());
         }
 
-        List<UserRouteWaypoint> ordered = nearestNeighborOrder(waypoints);
+        List<ResolvedWaypoint> ordered = nearestNeighborOrder(waypoints);
 
         if (ordered.size() > MAX_WAYPOINTS_FOR_REAL_ROUTING) {
             return ordered.stream()
-                    .map(w -> Coordinate.builder().lat(w.getLat()).lng(w.getLng()).build())
+                    .map(w -> Coordinate.builder().lat(w.lat()).lng(w.lng()).build())
                     .collect(Collectors.toList());
         }
 
         List<Coordinate> path = new ArrayList<>();
         for (int i = 0; i < ordered.size() - 1; i++) {
-            UserRouteWaypoint from = ordered.get(i);
-            UserRouteWaypoint to = ordered.get(i + 1);
+            ResolvedWaypoint from = ordered.get(i);
+            ResolvedWaypoint to = ordered.get(i + 1);
             List<Coordinate> leg = osrmWalkingDirectionsService.getWalkingPath(
-                    from.getLat(), from.getLng(), to.getLat(), to.getLng());
+                    from.lat(), from.lng(), to.lat(), to.lng());
 
             if (leg.isEmpty()) {
                 // 도보 경로 API가 실패하면 최소한 직선으로라도 이어준다.
-                path.add(Coordinate.builder().lat(from.getLat()).lng(from.getLng()).build());
-                path.add(Coordinate.builder().lat(to.getLat()).lng(to.getLng()).build());
+                path.add(Coordinate.builder().lat(from.lat()).lng(from.lng()).build());
+                path.add(Coordinate.builder().lat(to.lat()).lng(to.lng()).build());
             } else {
                 path.addAll(leg);
             }
@@ -229,18 +270,18 @@ public class UserRouteServiceImpl implements UserRouteService {
 
     // 1번(시작) 웨이포인트는 고정하고, 그다음부터는 현재 위치에서 가장 가까운 곳을 계속
     // 골라나가는 탐욕적(nearest-neighbor) 방식으로 실제로 걸을 법한 순서를 만든다.
-    private List<UserRouteWaypoint> nearestNeighborOrder(List<UserRouteWaypoint> waypoints) {
-        List<UserRouteWaypoint> remaining = new ArrayList<>(waypoints);
-        List<UserRouteWaypoint> ordered = new ArrayList<>();
+    private List<ResolvedWaypoint> nearestNeighborOrder(List<ResolvedWaypoint> waypoints) {
+        List<ResolvedWaypoint> remaining = new ArrayList<>(waypoints);
+        List<ResolvedWaypoint> ordered = new ArrayList<>();
 
-        UserRouteWaypoint current = remaining.remove(0);
+        ResolvedWaypoint current = remaining.remove(0);
         ordered.add(current);
 
         while (!remaining.isEmpty()) {
-            UserRouteWaypoint nearest = null;
+            ResolvedWaypoint nearest = null;
             double bestDistance = Double.MAX_VALUE;
-            for (UserRouteWaypoint candidate : remaining) {
-                double distance = GeoUtils.distanceKm(current.getLat(), current.getLng(), candidate.getLat(), candidate.getLng());
+            for (ResolvedWaypoint candidate : remaining) {
+                double distance = GeoUtils.distanceKm(current.lat(), current.lng(), candidate.lat(), candidate.lng());
                 if (distance < bestDistance) {
                     bestDistance = distance;
                     nearest = candidate;
@@ -430,13 +471,6 @@ public class UserRouteServiceImpl implements UserRouteService {
         boolean likedByMe = currentUser != null && userRouteLikeRepository.existsByUserAndRoute(currentUser, route);
         long scrapCount = userRouteScrapRepository.countByRoute(route);
         boolean scrapedByMe = currentUser != null && userRouteScrapRepository.existsByUserAndRoute(currentUser, route);
-        // 사진 없는 웨이포인트도 허용하므로, 첫 번째가 아니라 사진이 있는 첫 웨이포인트를 표지로 쓴다.
-        // 전부 사진이 없으면 빈 문자열을 주고 목록 화면이 대체 표지를 그린다.
-        String thumbnailUrl = route.getWaypoints().stream()
-                .map(UserRouteWaypoint::getPhotoUrl)
-                .filter(url -> url != null && !url.isBlank())
-                .findFirst()
-                .orElse("");
 
         return UserRouteSummaryDto.builder()
                 .id(route.getId())
@@ -446,7 +480,7 @@ public class UserRouteServiceImpl implements UserRouteService {
                 .authorName(route.getAuthor().getDisplayName())
                 .authorProfileImageUrl(route.getAuthor().getProfileImageUrl())
                 .createdAt(route.getCreatedAt())
-                .thumbnailUrl(thumbnailUrl)
+                .thumbnailUrl(coverPhoto(route.getWaypoints()))
                 .waypointCount(route.getWaypoints().size())
                 .likeCount(likeCount)
                 .commentCount(commentCount)
@@ -456,15 +490,70 @@ public class UserRouteServiceImpl implements UserRouteService {
                 .build();
     }
 
-    private UserRouteWaypointDto toWaypointDto(UserRouteWaypoint waypoint) {
+    // 목록 표지. 사진 없는 웨이포인트도 허용하므로, 첫 번째가 아니라 사진이 있는 첫 웨이포인트를 쓴다.
+    // 관광지 웨이포인트는 사진을 저장하지 않아 조회해야 하는데, 목록은 게시물마다 불리니
+    // 표지를 찾을 때까지 필요한 만큼만(최대 MAX_COVER_LOOKUPS건) 조회한다.
+    // 끝내 없으면 빈 문자열을 주고 목록 화면이 대체 표지를 그린다.
+    private String coverPhoto(List<UserRouteWaypoint> waypoints) {
+        int lookups = 0;
+        for (UserRouteWaypoint waypoint : waypoints) {
+            if (!waypoint.isTourSpot()) {
+                String photoUrl = waypoint.getPhotoUrl();
+                if (photoUrl != null && !photoUrl.isBlank()) return photoUrl;
+                continue;
+            }
+            if (lookups >= MAX_COVER_LOOKUPS) continue;
+            lookups++;
+            Optional<String> photoUrl = tourSpotLookupService.find(waypoint.getContentId())
+                    .map(TourSpot::photoUrl)
+                    .filter(url -> url != null && !url.isBlank());
+            if (photoUrl.isPresent()) return photoUrl.get();
+        }
+        return "";
+    }
+
+    private UserRouteWaypointDto toWaypointDto(ResolvedWaypoint waypoint) {
         return UserRouteWaypointDto.builder()
-                .sequenceOrder(waypoint.getSequenceOrder())
-                .title(waypoint.getTitle())
-                .memo(waypoint.getMemo())
-                .lat(waypoint.getLat())
-                .lng(waypoint.getLng())
-                .photoUrl(waypoint.getPhotoUrl())
+                .sequenceOrder(waypoint.sequenceOrder())
+                .title(waypoint.title())
+                .memo(waypoint.memo())
+                .lat(waypoint.lat())
+                .lng(waypoint.lng())
+                .photoUrl(waypoint.photoUrl())
                 .build();
+    }
+
+    /// 화면과 경로 계산에 쓰는 웨이포인트 값. 관광지 웨이포인트는 실시간 조회로 채운다.
+    private record ResolvedWaypoint(int sequenceOrder, String title, String memo,
+                                    double lat, double lng, String photoUrl) {
+    }
+
+    /// 웨이포인트 목록을 화면에 쓸 값으로 바꾼다. 원래 순서를 유지한다.
+    ///
+    /// 관광지 웨이포인트는 상세 정보를 동시에 조회한다. 조회에 실패한 스팟은 결과에서 뺀다 —
+    /// 좌표 0,0으로 넘기면 지도에 바다 한가운데 마커가 찍혀 범위가 깨진다.
+    private List<ResolvedWaypoint> resolveWaypoints(List<UserRouteWaypoint> waypoints) {
+        Map<String, TourSpot> spots = tourSpotLookupService.findAll(waypoints.stream()
+                .filter(UserRouteWaypoint::isTourSpot)
+                .map(UserRouteWaypoint::getContentId)
+                .toList());
+
+        List<ResolvedWaypoint> resolved = new ArrayList<>();
+        for (UserRouteWaypoint waypoint : waypoints) {
+            if (!waypoint.isTourSpot()) {
+                resolved.add(new ResolvedWaypoint(
+                        waypoint.getSequenceOrder(), waypoint.getTitle(), waypoint.getMemo(),
+                        waypoint.getLat(), waypoint.getLng(), waypoint.getPhotoUrl()));
+                continue;
+            }
+            TourSpot spot = spots.get(waypoint.getContentId());
+            if (spot != null) {
+                resolved.add(new ResolvedWaypoint(
+                        waypoint.getSequenceOrder(), spot.title(), spot.address(),
+                        spot.lat(), spot.lng(), spot.photoUrl()));
+            }
+        }
+        return resolved;
     }
 
     private UserRouteCommentDto toCommentDtoWithReplies(UserRouteComment comment, List<UserRouteComment> replies, User currentUser) {

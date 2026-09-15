@@ -42,14 +42,16 @@ public class ImageUploadValidator {
                 ? java.util.Arrays.copyOf(content, SIGNATURE_LENGTH)
                 : content;
 
+        // 사진 속 촬영 위치(EXIF GPS 등)는 저장·공개 전에 지운다. 게시물 사진만으로
+        // 사용자가 있던 위치가 드러나면 개인위치정보를 저장·공개하는 셈이 된다 (#57).
         if (isJpeg(signature)) {
-            return new ValidatedImage("image/jpeg", ".jpg", content);
+            return new ValidatedImage("image/jpeg", ".jpg", ImageMetadataStripper.strip("image/jpeg", content));
         }
         if (isPng(signature)) {
-            return new ValidatedImage("image/png", ".png", content);
+            return new ValidatedImage("image/png", ".png", ImageMetadataStripper.strip("image/png", content));
         }
         if (isWebp(signature)) {
-            return new ValidatedImage("image/webp", ".webp", content);
+            return new ValidatedImage("image/webp", ".webp", ImageMetadataStripper.strip("image/webp", content));
         }
 
         throw new ImageUploadException(

@@ -74,8 +74,5 @@ GET {{baseUrl}}/api/v1/routes/{{routeId}}/detail
 ### 최적 순례길
 GET {{baseUrl}}/api/v1/routes/optimal?longitude=127.0&latitude=37.5&minutes=180
 
-### 산책/순례길
-GET {{baseUrl}}/api/v1/trails
-
 ### 주변 관광지
 GET {{baseUrl}}/api/v1/places/nearby?mapX=127.0&mapY=37.5
