@@ -20,7 +20,13 @@ class LocalStorageServiceTest {
     void storesValidatedImageUnderRequestedDirectory() throws Exception {
         ImageUploadValidator validator = new ImageUploadValidator(DataSize.ofMegabytes(10));
         LocalStorageService storage = new LocalStorageService(validator, tempDir.toString());
-        byte[] jpeg = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x01, 0x02};
+        // 저장 전에 메타데이터를 지우려고 JPEG 구조를 읽으므로 최소한의 올바른 JPEG를 쓴다.
+        // 메타데이터가 없어 저장된 바이트는 그대로다.
+        byte[] jpeg = {
+                (byte) 0xFF, (byte) 0xD8,
+                (byte) 0xFF, (byte) 0xDA, 0x00, 0x02, 0x01, 0x02,
+                (byte) 0xFF, (byte) 0xD9
+        };
 
         String url = storage.store(
                 new MockMultipartFile("photo", "photo.exe", "application/octet-stream", jpeg),
