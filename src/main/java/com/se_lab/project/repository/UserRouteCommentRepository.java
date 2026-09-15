@@ -3,8 +3,11 @@ package com.se_lab.project.repository;
 import com.se_lab.project.entity.UserRoute;
 import com.se_lab.project.entity.UserRouteComment;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -15,6 +18,10 @@ public interface UserRouteCommentRepository extends JpaRepository<UserRouteComme
     // 서비스 계층에서 부모 id로 묶어 쓴다.
     List<UserRouteComment> findByRouteOrderByCreatedAtAsc(UserRoute route);
     long countByRoute(UserRoute route);
+
+    /// 목록 화면용. 게시물마다 count 쿼리를 따로 날리지 않도록 한 번에 센다. [게시물 id, 개수]
+    @Query("select c.route.id, count(c) from UserRouteComment c where c.route in :routes group by c.route.id")
+    List<Object[]> countByRoutes(@Param("routes") Collection<UserRoute> routes);
 
     // 게시글 전체 삭제 시 사용. 대댓글이 부모 댓글을 FK로 참조하므로, 반드시
     // 대댓글(parent != null)을 먼저 지운 뒤 최상위 댓글을 지워야 제약조건 위반이 없다.
