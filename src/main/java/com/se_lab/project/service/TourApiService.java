@@ -148,6 +148,7 @@ public class TourApiService {
         }
     }
 
+    /// 강원 안에서만 찾는다. 지역을 지정하지 않으면 "부평"에 인천 상점이, "동굴"에 광명동굴이 섞여 나온다.
     public List<BasePlaceDto> searchByKeyword(String keyword, int numOfRows) {
         UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromHttpUrl(baseUrl + searchKeywordEndpoint)
                 .queryParam("serviceKey", serviceKey)
@@ -155,6 +156,7 @@ public class TourApiService {
                 .queryParam("MobileApp", "KangwonRoad")
                 .queryParam("_type", "json")
                 .queryParam("keyword", keyword)
+                .queryParam("areaCode", TourApiConstants.DEFAULT_AREA_CODE)
                 .queryParam("numOfRows", String.valueOf(numOfRows))
                 .queryParam("arrange", "A");
 
